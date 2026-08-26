@@ -1,37 +1,73 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { morph, smooth01, clamp01, easeOutBack } from "./shared";
 
-// 3D Voxel coordinate offsets to trace out "B R C"
-const BRC_OFFSETS: [number, number, number][] = [
-  // --- B ---
-  [-3.6, 0.0, 0], [-3.6, 0.4, 0], [-3.6, 0.8, 0], [-3.6, 1.2, 0], [-3.6, 1.6, 0],
-  [-3.2, 1.6, 0], [-2.8, 1.4, 0], [-3.2, 0.8, 0], [-2.8, 0.4, 0], [-3.2, 0.0, 0],
-  // --- R ---
-  [-1.6, 0.0, 0], [-1.6, 0.4, 0], [-1.6, 0.8, 0], [-1.6, 1.2, 0], [-1.6, 1.6, 0],
-  [-1.2, 1.6, 0], [-0.8, 1.2, 0], [-1.2, 0.8, 0], [-1.0, 0.4, 0], [-0.7, 0.0, 0],
-  // --- C ---
-  [0.8, 1.4, 0], [0.4, 1.6, 0], [0.0, 1.2, 0], [0.0, 0.8, 0], [0.0, 0.4, 0],
-  [0.4, 0.0, 0], [0.8, 0.2, 0],
+// Precision stroke coordinates that trace the letters B -> R -> C in order
+const BRC_STROKE_POINTS: [number, number, number][] = [
+  // --- Letter 'B' ---
+  [-3.8, -0.9, 0],
+  [-3.8, -0.45, 0],
+  [-3.8, 0.0, 0],
+  [-3.8, 0.45, 0],
+  [-3.8, 0.9, 0],
+  [-3.3, 0.9, 0],
+  [-2.85, 0.65, 0],
+  [-3.3, 0.45, 0],
+  [-2.8, 0.2, 0],
+  [-3.3, -0.9, 0],
+  [-3.8, -0.9, 0],
+
+  // --- Letter 'R' ---
+  [-1.6, -0.9, 0],
+  [-1.6, -0.45, 0],
+  [-1.6, 0.0, 0],
+  [-1.6, 0.45, 0],
+  [-1.6, 0.9, 0],
+  [-1.15, 0.9, 0],
+  [-0.7, 0.55, 0],
+  [-1.15, 0.2, 0],
+  [-0.95, -0.35, 0],
+  [-0.65, -0.9, 0],
+
+  // --- Letter 'C' ---
+  [1.7, 0.75, 0],
+  [1.25, 0.9, 0],
+  [0.65, 0.65, 0],
+  [0.45, 0.2, 0],
+  [0.45, -0.2, 0],
+  [0.65, -0.65, 0],
+  [1.25, -0.9, 0],
+  [1.7, -0.75, 0],
 ];
+
+interface SmokePuff {
+  baseX: number;
+  baseY: number;
+  baseZ: number;
+  strokeIndex: number;
+  scaleVar: number;
+  rotSpeed: number;
+  phase: number;
+}
 
 export default function Superhero({
   orbit = 16,
-  alt = 18,
+  alt = 16,
 }: {
   orbit?: number;
   alt?: number;
 }) {
   const heroGroup = useRef<THREE.Group>(null);
   const capeRef = useRef<THREE.Mesh>(null);
-  const trailMeshRef = useRef<THREE.InstancedMesh>(null);
+  const smokeMeshRef = useRef<THREE.InstancedMesh>(null);
   const intro = useRef(0);
 
+  // Voxel & Smoke Geometries
   const boxGeo = useMemo(() => new THREE.BoxGeometry(1, 1, 1), []);
-  const trailParticleGeo = useMemo(() => new THREE.SphereGeometry(0.18, 8, 8), []);
+  const smokePuffGeo = useMemo(() => new THREE.DodecahedronGeometry(0.55, 1), []);
 
-  // Materials
+  // Character Materials
   const suitBlueMat = useMemo(
     () => new THREE.MeshStandardMaterial({ color: "#1d4ed8", roughness: 0.4 }),
     [],
@@ -48,29 +84,68 @@ export default function Superhero({
     () => new THREE.MeshStandardMaterial({ color: "#f59e0b", roughness: 0.2, metalness: 0.8 }),
     [],
   );
-  const trailMat = useMemo(
+
+  // Soft, billowy skywriting smoke material
+  const smokeMat = useMemo(
     () =>
-      new THREE.MeshBasicMaterial({
-        color: "#fef08a",
+      new THREE.MeshStandardMaterial({
+        color: "#ffffff",
+        roughness: 1.0,
+        metalness: 0,
         transparent: true,
-        opacity: 0.85,
+        opacity: 0.58,
+        emissive: "#fff8fa",
+        emissiveIntensity: 0.12,
+        depthWrite: false,
       }),
     [],
   );
+
+  // Multiple volumetric puffs per stroke point to form thick, cloud-like letters
+  const smokePuffs = useMemo<SmokePuff[]>(() => {
+    const list: SmokePuff[] = [];
+    BRC_STROKE_POINTS.forEach((pt, idx) => {
+      // 3 clustered puffs per stroke coordinate for dense billowy volume
+      for (let k = 0; k < 3; k++) {
+        list.push({
+          baseX: pt[0] * 1.35 + (Math.random() - 0.5) * 0.35,
+          baseY: pt[1] * 1.35 + (Math.random() - 0.5) * 0.35,
+          baseZ: pt[2] + (Math.random() - 0.5) * 0.35,
+          strokeIndex: idx,
+          scaleVar: 0.85 + Math.random() * 0.45,
+          rotSpeed: (Math.random() - 0.5) * 0.6,
+          phase: Math.random() * Math.PI * 2,
+        });
+      }
+    });
+    return list;
+  }, []);
 
   const tmp = useMemo(() => new THREE.Object3D(), []);
 
   useEffect(() => {
     return () => {
       boxGeo.dispose();
-      trailParticleGeo.dispose();
+      smokePuffGeo.dispose();
       suitBlueMat.dispose();
       capeRedMat.dispose();
       skinMat.dispose();
       goldMat.dispose();
-      trailMat.dispose();
+      smokeMat.dispose();
     };
-  }, [boxGeo, trailParticleGeo, suitBlueMat, capeRedMat, skinMat, goldMat, trailMat]);
+  }, [boxGeo, smokePuffGeo, suitBlueMat, capeRedMat, skinMat, goldMat, smokeMat]);
+
+  useLayoutEffect(() => {
+    const m = smokeMeshRef.current;
+    if (!m) return;
+    for (let i = 0; i < smokePuffs.length; i++) {
+      tmp.position.set(0, -999, 0);
+      tmp.scale.setScalar(0.0001);
+      tmp.updateMatrix();
+      m.setMatrixAt(i, tmp.matrix);
+    }
+    m.instanceMatrix.needsUpdate = true;
+  }, [smokePuffs, tmp]);
 
   useFrame((state, rawDt) => {
     const dt = Math.min(rawDt, 0.05);
@@ -80,77 +155,104 @@ export default function Superhero({
     const p = morph?.p ?? 0;
     const vis = Math.max(0, 1 - smooth01(p));
     const grow = easeOutBack(clamp01(intro.current / 0.7));
-    const scale = vis * grow;
+    const totalScale = vis * grow;
 
     // Flight Orbit Motion
     const hero = heroGroup.current;
+    const flightSpeed = 0.48;
+    const angle = t * flightSpeed;
+    const r = orbit * 1.15;
+
+    const heroX = Math.cos(angle) * r;
+    const heroZ = Math.sin(angle) * r;
+    const heroY = alt + Math.sin(t * 1.6) * 0.75;
+
     if (hero) {
-      const flightSpeed = 0.55;
-      const angle = t * flightSpeed;
-      const r = orbit * 1.15;
-
-      const x = Math.cos(angle) * r;
-      const z = Math.sin(angle) * r;
-      const y = alt + Math.sin(t * 1.8) * 0.8;
-
-      hero.position.set(x, y, z);
-      // Face forward along flight direction with superhero tilt
+      hero.position.set(heroX, heroY, heroZ);
       hero.rotation.set(
-        Math.PI / 2.3, // Flying horizontal posture
+        Math.PI / 2.35, // Horizontal flight angle
         -angle - Math.PI / 2,
-        0.35, // Bank roll
+        0.32, // Aerodynamic banking
         "YXZ",
       );
-      hero.scale.setScalar(Math.max(0.0001, 1.2 * scale));
-      hero.visible = scale > 0.02;
+      hero.scale.setScalar(Math.max(0.0001, 1.25 * totalScale));
+      hero.visible = totalScale > 0.02;
     }
 
-    // Dynamic Flapping Cape
+    // Billowing cape flutter
     if (capeRef.current) {
-      capeRef.current.rotation.x = 0.15 + Math.sin(t * 14) * 0.22;
-      capeRef.current.rotation.z = Math.cos(t * 12) * 0.1;
+      capeRef.current.rotation.x = 0.16 + Math.sin(t * 15) * 0.24;
+      capeRef.current.rotation.z = Math.cos(t * 13) * 0.12;
     }
 
-    // Glowing "BRC" trail following superhero wake
-    const trailMesh = trailMeshRef.current;
-    if (trailMesh && hero) {
-      trailMat.opacity = vis * (0.65 + Math.sin(t * 4) * 0.2);
-      trailMesh.visible = trailMat.opacity > 0.01;
+    // Volumetric Smoke Letters Trail
+    const smokeMesh = smokeMeshRef.current;
+    if (smokeMesh) {
+      smokeMat.opacity = vis * 0.58;
+      smokeMesh.visible = smokeMat.opacity > 0.01;
+      if (!smokeMesh.visible) return;
 
-      const trailFollowAngle = t * 0.55 - 0.45;
-      const trailCenter = new THREE.Vector3(
-        Math.cos(trailFollowAngle) * (orbit * 1.15),
-        alt + 1.2,
-        Math.sin(trailFollowAngle) * (orbit * 1.15),
+      // Position the skywritten BRC cloud directly in the hero's wake
+      const trailLagAngle = angle - 0.75;
+      const cloudCenter = new THREE.Vector3(
+        Math.cos(trailLagAngle) * (orbit * 1.08),
+        alt + 0.6,
+        Math.sin(trailLagAngle) * (orbit * 1.08),
       );
 
-      const pulse = 1 + Math.sin(t * 3) * 0.12;
+      // Facing the main front camera
+      const yawAngle = -trailLagAngle - Math.PI / 2;
 
-      for (let i = 0; i < BRC_OFFSETS.length; i++) {
-        const offset = BRC_OFFSETS[i];
-        
-        // Orient characters towards the central camera view
+      for (let i = 0; i < smokePuffs.length; i++) {
+        const puff = smokePuffs[i];
+
+        // Progressive writing wave from B to R to C
+        const strokeProgress = puff.strokeIndex / BRC_STROKE_POINTS.length;
+        const wave = Math.sin(t * 1.2 - strokeProgress * 4.5);
+        const billowGrowth = 1.0 + Math.max(0, wave) * 0.22;
+
+        // Subtle drifting float
+        const driftX = Math.sin(t * 0.6 + puff.phase) * 0.18;
+        const driftY = Math.cos(t * 0.5 + puff.phase) * 0.18;
+
+        // Rotate offset into the camera view plane
+        const localX = (puff.baseX + driftX) * billowGrowth;
+        const localY = (puff.baseY + driftY) * billowGrowth;
+        const localZ = puff.baseZ;
+
+        const rotatedX = localX * Math.cos(yawAngle) - localZ * Math.sin(yawAngle);
+        const rotatedZ = localX * Math.sin(yawAngle) + localZ * Math.cos(yawAngle);
+
         tmp.position.set(
-          trailCenter.x + offset[0] * 0.65 * pulse,
-          trailCenter.y + offset[1] * 0.65 * pulse,
-          trailCenter.z + offset[2] * 0.65,
+          cloudCenter.x + rotatedX,
+          cloudCenter.y + localY,
+          cloudCenter.z + rotatedZ,
         );
-        tmp.scale.setScalar(Math.max(0.0001, (0.28 + (i % 2) * 0.08) * scale));
+
+        tmp.rotation.set(
+          t * puff.rotSpeed,
+          t * puff.rotSpeed * 0.8,
+          puff.phase,
+        );
+
+        const currentPuffScale = puff.scaleVar * billowGrowth * totalScale;
+        tmp.scale.setScalar(Math.max(0.0001, currentPuffScale));
         tmp.updateMatrix();
-        trailMesh.setMatrixAt(i, tmp.matrix);
+
+        smokeMesh.setMatrixAt(i, tmp.matrix);
       }
-      trailMesh.instanceMatrix.needsUpdate = true;
+      smokeMesh.instanceMatrix.needsUpdate = true;
     }
   });
 
   return (
     <>
-      {/* Superhero Figure */}
+      {/* Flying Superhero */}
       <group ref={heroGroup}>
         {/* Torso */}
         <mesh geometry={boxGeo} material={suitBlueMat} scale={[0.48, 0.72, 0.32]} />
-        
-        {/* Golden Emblem on Chest */}
+
+        {/* Gold Emblem */}
         <mesh
           geometry={boxGeo}
           material={goldMat}
@@ -166,7 +268,7 @@ export default function Superhero({
           scale={[0.3, 0.32, 0.3]}
         />
 
-        {/* Extended Fist (Right Leading Hand) */}
+        {/* Forward Leading Fist */}
         <mesh
           geometry={boxGeo}
           material={skinMat}
@@ -174,7 +276,7 @@ export default function Superhero({
           scale={[0.16, 0.45, 0.16]}
         />
 
-        {/* Side Hand (Left Arm) */}
+        {/* Trailing Arm */}
         <mesh
           geometry={boxGeo}
           material={suitBlueMat}
@@ -210,7 +312,7 @@ export default function Superhero({
           scale={[0.19, 0.28, 0.22]}
         />
 
-        {/* Billowing Red Cape */}
+        {/* Flapping Red Cape */}
         <mesh
           ref={capeRef}
           geometry={boxGeo}
@@ -220,10 +322,10 @@ export default function Superhero({
         />
       </group>
 
-      {/* Floating Sparkle Trail Forming "BRC" */}
+      {/* Billowy Skywriting Smoke "BRC" */}
       <instancedMesh
-        ref={trailMeshRef}
-        args={[trailParticleGeo, trailMat, BRC_OFFSETS.length]}
+        ref={smokeMeshRef}
+        args={[smokePuffGeo, smokeMat, smokePuffs.length]}
         frustumCulled={false}
       />
     </>
