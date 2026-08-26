@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { morph, smooth01, clamp01, easeOutBack } from "./shared";
 
-// High-clarity 2-sided canvas texture renderer with crisp contrast & high DPI
+// High-clarity canvas texture with an elegant, modern serif/display font pairing
 function createBannerTextures(text: string) {
   const canvasFront = document.createElement("canvas");
   const canvasBack = document.createElement("canvas");
@@ -19,37 +19,38 @@ function createBannerTextures(text: string) {
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, 2048, 512);
 
-    // Thick solid borders for visibility
-    ctx.fillStyle = "#be123c"; // Crimson red border
-    ctx.fillRect(0, 0, 2048, 28);
-    ctx.fillRect(0, 484, 2048, 28);
+    // Deep crimson border
+    ctx.fillStyle = "#9f1239";
+    ctx.fillRect(0, 0, 2048, 24);
+    ctx.fillRect(0, 488, 2048, 24);
 
-    ctx.fillStyle = "#d97706"; // Golden amber trim
-    ctx.fillRect(0, 28, 2048, 14);
-    ctx.fillRect(0, 470, 2048, 14);
+    // Rich gold metallic inner trim
+    ctx.fillStyle = "#d97706";
+    ctx.fillRect(0, 24, 2048, 10);
+    ctx.fillRect(0, 478, 2048, 10);
 
     if (isBack) {
       ctx.translate(2048, 0);
       ctx.scale(-1, 1);
     }
 
-    // Heavy bold typography
-    ctx.font = "900 138px 'Arial Black', Impact, sans-serif";
+    // Elegant, premium high-contrast display typography
+    ctx.font = "bold 130px 'Cinzel', 'Playfair Display', 'Georgia', 'Times New Roman', serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
 
-    // Thick dark outer stroke for razor-sharp legibility at any distance
-    ctx.lineWidth = 22;
-    ctx.strokeStyle = "#881337";
+    // Text outer stroke for crisp edge separation
+    ctx.lineWidth = 14;
+    ctx.strokeStyle = "#4c0519";
     ctx.strokeText(text, 1024, 256);
 
-    // Deep contrasting fill
-    ctx.fillStyle = "#e11d48";
+    // Rich ruby fill
+    ctx.fillStyle = "#be123c";
     ctx.fillText(text, 1024, 256);
 
-    // Inner bright text highlight core
-    ctx.lineWidth = 6;
-    ctx.strokeStyle = "#ffffff";
+    // Delicate golden highlight outline along inner letterforms
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "#fef08a";
     ctx.strokeText(text, 1024, 256);
   };
 
@@ -88,8 +89,6 @@ export default function Helicopter({
   const boxGeo = useMemo(() => new THREE.BoxGeometry(1, 1, 1), []);
   const sphereGeo = useMemo(() => new THREE.SphereGeometry(1, 16, 16), []);
   const cylinderGeo = useMemo(() => new THREE.CylinderGeometry(1, 1, 1, 16), []);
-  
-  // High-aspect banner geometry scaled for maximum legibility
   const bannerGeo = useMemo(() => new THREE.PlaneGeometry(10.5, 2.6, 32, 6), []);
 
   const { texFront, texBack } = useMemo(
@@ -143,7 +142,6 @@ export default function Helicopter({
     [],
   );
 
-  // Self-illuminated Basic Material so the name remains fully bright and readable from all angles
   const bannerFrontMat = useMemo(
     () =>
       new THREE.MeshBasicMaterial({
@@ -226,7 +224,6 @@ export default function Helicopter({
         tangent,
       );
 
-      // Controlled banking angle to keep the text facing the camera cleanly
       const bankEuler = new THREE.Euler(0.06, 0, 0.16, "ZYX");
       quat.multiply(new THREE.Quaternion().setFromEuler(bankEuler));
 
@@ -242,10 +239,9 @@ export default function Helicopter({
       tailRotorRef.current.rotation.x += dt * 40;
     }
 
-    // Tamed, flat wave rippling to preserve character geometry and readability
     const posAttr = bannerGeo.attributes.position;
     for (let i = 0; i < posAttr.count; i++) {
-      const u = (posAttr.getX(i) + 5.25) / 10.5; // 0 (tether) to 1 (tail)
+      const u = (posAttr.getX(i) + 5.25) / 10.5;
       const wave = Math.sin(t * 6 - u * 4.5) * (0.02 + u * 0.22);
       posAttr.setZ(i, wave);
     }
@@ -304,7 +300,7 @@ export default function Helicopter({
         scale={[0.08, 0.35, 0.08]}
       />
 
-      {/* Spinning Main Rotor Assembly */}
+      {/* Main Rotor Assembly */}
       <group position={[0, 1.02, 0.35]} ref={mainRotorRef}>
         <mesh geometry={cylinderGeo} material={metalMat} scale={[0.22, 0.08, 0.22]} />
         <mesh geometry={boxGeo} material={rotorBladeMat} scale={[4.2, 0.03, 0.18]} />
@@ -338,7 +334,7 @@ export default function Helicopter({
         <mesh geometry={cylinderGeo} material={metalMat} position={[0.32, 0.25, -0.4]} scale={[0.035, 0.45, 0.035]} />
       </group>
 
-      {/* High-Contrast Readable Banner */}
+      {/* High-Contrast Serif Display Banner */}
       <group position={[0, -0.2, -2.25]}>
         {/* Tow Rig Cables */}
         <mesh
