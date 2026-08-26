@@ -5,7 +5,7 @@ import Scene from "./three/Scene";
 import Controls from "./components/Controls";
 import { FooterBits, Header, Hint, ScannerOverlay, Toast, Watermark } from "./components/Overlays";
 import { buildGrid, downloadPng, readHash, writeHash, type ShareState } from "./lib/qr";
-import { resolvePalette, SEASONS, type Weather } from "./lib/palettes";
+import { resolvePalette, SEASONS } from "./lib/palettes";
 import { hashSeed } from "./lib/random";
 
 const DEFAULT_URL = "https://sp-lis.launion.gov.ph/";
@@ -15,7 +15,6 @@ export default function App() {
   const [url, setUrl] = useState(boot.url ?? DEFAULT_URL);
   const [committed, setCommitted] = useState(boot.url ?? DEFAULT_URL);
   const [season, setSeason] = useState(boot.season ?? 0);
-  const [weather, setWeather] = useState<Weather>("day");
   const [leaf, setLeaf] = useState<string | null>(boot.leaf);
   const [groundColor, setGroundColor] = useState<string | null>(boot.ground);
   const [salt, setSalt] = useState(boot.salt);
@@ -23,7 +22,6 @@ export default function App() {
   const [toast, setToast] = useState<{ id: number; msg: string } | null>(null);
   const [copied, setCopied] = useState(false);
 
-  // Minimal viewer mode when shared
   const isMinimalView = useMemo(() => {
     if (typeof window === "undefined") return false;
     const search = new URLSearchParams(window.location.search);
@@ -71,8 +69,8 @@ export default function App() {
     [activeGrid, salt],
   );
   const palette = useMemo(
-    () => resolvePalette(season, leaf, groundColor, weather),
-    [season, leaf, groundColor, weather],
+    () => resolvePalette(season, leaf, groundColor),
+    [season, leaf, groundColor],
   );
 
   /* sync hash state */
@@ -244,8 +242,6 @@ export default function App() {
                 setLeaf(null);
                 setGroundColor(null);
               }}
-              weather={weather}
-              onWeather={setWeather}
               isCustom={isCustom}
               leafValue={leaf ?? baseSeason.foliage[1]}
               groundValue={groundColor ?? baseSeason.grass[0]}

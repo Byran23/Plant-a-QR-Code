@@ -1,13 +1,11 @@
 import { Color } from "three";
 
 export type SeasonId = "spring" | "summer" | "autumn" | "winter";
-export type Weather = "day" | "night" | "rainy";
 
 export interface Palette {
   id: SeasonId | "custom";
   baseId: SeasonId;
   label: string;
-  weather: Weather;
   /** CSS sky gradient (behind the transparent canvas) */
   sky: [string, string];
   /** Soft radial glow tint */
@@ -45,7 +43,6 @@ export const SEASONS: Palette[] = [
     id: "spring",
     baseId: "spring",
     label: "Sakura",
-    weather: "day",
     sky: ["#f9f3ea", "#f5ebec"],
     glow: "rgba(255, 183, 200, 0.4)",
     fog: "#f5ece6",
@@ -75,7 +72,6 @@ export const SEASONS: Palette[] = [
     id: "summer",
     baseId: "summer",
     label: "Summer",
-    weather: "day",
     sky: ["#eef8ff", "#e0f2fe"],
     glow: "rgba(255, 240, 173, 0.4)",
     fog: "#e2f0f9",
@@ -101,7 +97,6 @@ export const SEASONS: Palette[] = [
     id: "autumn",
     baseId: "autumn",
     label: "Autumn",
-    weather: "day",
     sky: ["#fff4e6", "#fcefe3"],
     glow: "rgba(255, 173, 92, 0.35)",
     fog: "#f6e2cd",
@@ -127,7 +122,6 @@ export const SEASONS: Palette[] = [
     id: "winter",
     baseId: "winter",
     label: "Winter",
-    weather: "day",
     sky: ["#f1f5fa", "#e8edf5"],
     glow: "rgba(214, 231, 255, 0.4)",
     fog: "#dde8f2",
@@ -169,7 +163,6 @@ export function resolvePalette(
   season: number,
   customLeaf: string | null,
   customGround: string | null,
-  weather: Weather = "day",
 ): Palette {
   const base = SEASONS[((season % SEASONS.length) + SEASONS.length) % SEASONS.length];
   const isCustom = Boolean(customLeaf || customGround);
@@ -178,30 +171,7 @@ export function resolvePalette(
     ...base,
     id: isCustom ? "custom" : base.id,
     label: isCustom ? "Custom" : base.label,
-    weather,
   };
-
-  if (weather === "night") {
-    p.sky = ["#090d16", "#141d2e"];
-    p.glow = "rgba(147, 197, 253, 0.15)";
-    p.fog = "#0c1322";
-    p.hemiSky = "#1e293b";
-    p.hemiGround = "#0f172a";
-    p.sun = "#64748b";
-    p.rock = "#475569";
-    p.qrDark = "#1e293b";
-    p.qrLight = "#0f172a";
-  } else if (weather === "rainy") {
-    p.sky = ["#3a4754", "#5c6b78"];
-    p.glow = "rgba(155, 200, 235, 0.2)";
-    p.fog = "#4b5563";
-    p.hemiSky = "#6b7280";
-    p.hemiGround = "#374151";
-    p.sun = "#9ca3af";
-    p.rock = "#52525b";
-    p.qrDark = "#27272a";
-    p.qrLight = "#f4f4f5";
-  }
 
   if (customLeaf) {
     p.qrDark = customLeaf;
