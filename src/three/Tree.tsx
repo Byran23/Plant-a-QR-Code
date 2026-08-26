@@ -39,27 +39,26 @@ interface CanopyVoxel {
 interface TreeData {
   trunk: Voxel[];
   canopy: CanopyVoxel[];
-  flowerHeads: Voxel[];
-  flowerStems: Voxel[];
   tufts: Voxel[];
-  rocks: Voxel[];
-  shroomStems: Voxel[];
-  shroomCaps: Voxel[];
+  shroomStems: Voxel[]; // used for petas (leaves) on the ground
 }
 
 const FLAT_TILE_TOP = 0.14; // matches the ground's flattened tile height
 
-function generateTree(seed: number, grid: QRGrid, zone: ForestZone): TreeData {
+/**
+ * A sakura tree.
+ */
+export function generateSakuraTree(
+  seed: number,
+  grid: QRGrid,
+  zone: ForestZone,
+): TreeData {
   const rng = mulberry32(seed);
   const d: TreeData = {
     trunk: [],
     canopy: [],
-    flowerHeads: [],
-    flowerStems: [],
     tufts: [],
-    rocks: [],
     shroomStems: [],
-    shroomCaps: [],
   };
   const push = (
     arr: Voxel[],
@@ -75,13 +74,14 @@ function generateTree(seed: number, grid: QRGrid, zone: ForestZone): TreeData {
   const half = (grid.total - 1) / 2;
   const H = (zone.n >= 11 ? 8 : zone.n >= 7 ? 7 : 5) + Math.floor(rng() * 2);
 
-  // trunk — chunky tapered column with a gentle gnarl
+  // trunk — chunky tapered column with a gentle gnarl, using sakura bark colors
   let leanX = 0;
   let leanZ = 0;
   for (let y = 0; y < H; y++) {
     const w = y < 2 ? 3.0 : y < H - 2 ? 2.1 : 1.3;
     leanX += (rng() - 0.5) * 0.14;
     leanZ += (rng() - 0.5) * 0.14;
+    // sakura trunk can alternate bark colors for texture, like dark and light grey
     push(d.trunk, leanX, y + 0.5, leanZ, w, 1.04, w, rng() < 0.5 ? 0 : 1);
   }
   // root flares
@@ -124,24 +124,28 @@ function generateTree(seed: number, grid: QRGrid, zone: ForestZone): TreeData {
   }
 
   /* --------------------------------------------------------------
-   * CANOPY — every dark module of the forest zone grows as a leaf.
-   * The organic position keeps the module's horizontal direction
-   * (squished toward the crown) so the treetop, seen from above,
-   * already hints at the code it will complete.
+   * SAKURA CANOPY — every dark module of the forest zone grows as a petal/leaf.
+   * We need a very dense, puffy form.
    * ------------------------------------------------------------ */
   const crownY = H + 1.9;
-  const t = 0.92; // silhouette fidelity to the module map
-  const domeR = (zone.n / 2) * t || 1;
+  const t = 1.05; // increased density
+  const domeR = (zone.n / 1.7) * t || 1; // make it more spherical and slightly smaller
+
   const pushCanopy = (mx: number, mz: number, pale: boolean) => {
-    const dome = 1 - Math.min(1, (mx * t * mx * t + mz * t * mz * t) / (domeR * domeR));
+    const dome = Math.sqrt(
+      Math.max(
+        0,
+        1 - (mx * t * mx * t + mz * t * mz * t) / (domeR * domeR),
+      ),
+    );
     d.canopy.push({
-      ox: mx * t + (rng() * 2 - 1) * 1.35,
-      oy: crownY + dome * 1.9 + (rng() * 2 - 1) * 1.9,
-      oz: mz * t + (rng() * 2 - 1) * 1.35,
-      os: 0.68 + rng() * 0.75,
+      ox: mx * t + (rng() * 2 - 1) * 1.6, // slightly wider spread
+      oy: crownY + dome * 2.8 + (rng() * 2 - 1) * 1.5, // taller, puffy shape
+      oz: mz * t + (rng() * 2 - 1) * 1.6,
+      os: 0.8 + rng() * 1.1, // increased petal size variation for fluffy look
       fx: mx,
       fz: mz,
-      ci: pickIndex(rng, 4),
+      ci: pickIndex(rng, 4), // multiple sakura pink/white shades
       pale,
       rot: rng() * Math.PI,
       u: rng(),
@@ -159,80 +163,66 @@ function generateTree(seed: number, grid: QRGrid, zone: ForestZone): TreeData {
       }
     }
   }
-  // extra non-data leaves for fluff — they vanish when the code assembles
-  const extras = Math.ceil(darkCount * 0.5);
+  // extra non-data leaves for significant fluff and form
+  const extras = Math.ceil(darkCount * 1.2);
   for (let i = 0; i < extras; i++) {
-    const mx = zone.x0 + Math.floor(rng() * zone.n) - half + (rng() - 0.5);
-    const mz = zone.z0 + Math.floor(rng() * zone.n) - half + (rng() - 0.5);
+    const mx =
+      zone.x0 + Math.floor(rng() * zone.n) - half + (rng() - 0.5);
+    const mz =
+      zone.z0 + Math.floor(rng() * zone.n) - half + (rng() - 0.5);
     pushCanopy(mx, mz, true);
   }
 
-  // garden decorations sprinkled over the QR meadow (outside the clearing)
-  const GROUND_Y = 0.62;
+  // garden decorations on the stone path and around it
+  const PATH_Y = 0.28; // height of the pattern stone path tiles
+  const GROUND_Y = 0.62; // original ground height
   const margin = zone.n / 2 + 1;
-  const target = 6 + Math.floor(rng() * 4);
+  const target = 18 + Math.floor(rng() * 8); // more details
   let placed = 0;
-  let attempts = 90;
+  let attempts = 150;
   while (placed < target && attempts-- > 0) {
     const ang = rng() * Math.PI * 2;
-    const rad = margin + rng() * Math.max(1, half - margin - 1.6);
+    const rad =
+      margin + rng() * Math.max(1, half - margin - 1.6);
     const x = Math.round(Math.cos(ang) * rad);
     const z = Math.round(Math.sin(ang) * rad);
-    if (Math.abs(x) > half - 1.5 || Math.abs(z) > half - 1.5) continue;
+    if (Math.abs(x) > half - 1.5 || Math.abs(z) > half - 1.5)
+      continue;
     const roll = rng();
-    if (roll < 0.16) {
-      const n = 1 + Math.floor(rng() * 2);
-      for (let j = 0; j < n; j++) {
-        const s = 0.38 + rng() * 0.42;
-        push(
-          d.rocks,
-          x + (rng() - 0.5) * 0.7,
-          GROUND_Y + s * 0.32,
-          z + (rng() - 0.5) * 0.7,
-          s,
-          s * 0.72,
-          s,
-          0,
-        );
-      }
-    } else if (roll < 0.3) {
-      push(d.shroomStems, x, GROUND_Y + 0.13, z, 0.17, 0.3, 0.17, 0);
-      push(d.shroomCaps, x, GROUND_Y + 0.34, z, 0.46, 0.24, 0.46, 0);
-    } else if (roll < 0.68) {
-      const h = 0.3 + rng() * 0.22;
-      push(d.flowerStems, x, GROUND_Y + h / 2, z, 0.09, h, 0.09, 0);
-      push(d.flowerHeads, x, GROUND_Y + h + 0.1, z, 0.27, 0.22, 0.27, Math.floor(rng() * 3));
-      if (rng() < 0.35) {
-        const ox = (rng() - 0.5) * 0.6;
-        const oz = (rng() - 0.5) * 0.6;
-        const h2 = h * (0.7 + rng() * 0.3);
-        push(d.flowerStems, x + ox, GROUND_Y + h2 / 2, z + oz, 0.08, h2, 0.08, 0);
-        push(
-          d.flowerHeads,
-          x + ox,
-          GROUND_Y + h2 + 0.09,
-          z + oz,
-          0.23,
-          0.19,
-          0.23,
-          Math.floor(rng() * 3),
-        );
-      }
-    } else {
+
+    // Grass around the path and on the path edge
+    if (roll < 0.6) {
       const blades = 2 + Math.floor(rng() * 2);
       for (let j = 0; j < blades; j++) {
         const hb = 0.3 + rng() * 0.45;
         push(
           d.tufts,
           x + (rng() - 0.5) * 0.55,
-          GROUND_Y + hb / 2,
+          (rad > margin + 0.5 ? GROUND_Y : PATH_Y) + hb / 2, // grass on path edge is slightly lower
           z + (rng() - 0.5) * 0.55,
           0.09,
           hb,
           0.09,
-          Math.floor(rng() * 2),
+          Math.floor(rng() * 2), // 2 grass colors
         );
       }
+    }
+    // Fallen petals on the path and around the tree base
+    if (placed < target / 2 && roll > 0.4) {
+      // only place on the path and under tree
+      const px = (rng() - 0.5) * zone.n * 0.9;
+      const pz = (rng() - 0.5) * zone.n * 0.9;
+      const ps = 0.15 + rng() * 0.2;
+      push(
+        d.shroomStems, // repurpose shroomStems for ground petals
+        x * 0.8 + px, // concentrate around tree center
+        (rad > margin + 0.5 ? GROUND_Y : PATH_Y) + FLAT_TILE_TOP + 0.01,
+        z * 0.8 + pz,
+        ps,
+        0.02,
+        ps,
+        pickIndex(rng, 4), // sakura colors
+      );
     }
     placed++;
   }
@@ -342,7 +332,9 @@ function Canopy({
 
     for (let i = 0; i < visible.length; i++) {
       const v = visible[i];
-      const grow = easeOutBack(clamp01((s.intro * 1.35 - v.u * 0.35) / 0.55));
+      const grow = easeOutBack(
+        clamp01((s.intro * 1.35 - v.u * 0.35) / 0.55),
+      );
       tmp.position.set(
         v.ox + (v.fx - v.ox) * q,
         v.oy + (flatY - v.oy) * q,
@@ -383,7 +375,7 @@ function Canopy({
 
 /* ------------------------------------------------------------------ */
 
-export default function Tree({
+export default function SakuraTree({
   seed,
   palette,
   grid,
@@ -401,23 +393,49 @@ export default function Tree({
     intro.current = 0;
   }, [seed]);
 
-  const geo = useMemo(() => new RoundedBoxGeometry(1, 1, 1, 2, 0.14), []);
-  const data = useMemo(() => generateTree(seed, grid, zone), [seed, grid, zone]);
+  const geo = useMemo(
+    () => new RoundedBoxGeometry(1, 1, 1, 2, 0.14),
+    [],
+  );
+  const data = useMemo(
+    () => generateSakuraTree(seed, grid, zone),
+    [seed, grid, zone],
+  );
 
-  const thin = <T extends Voxel>(arr: T[]) => arr.filter((v) => v.u < palette.decorDensity);
-  const flowerHeads = useMemo(() => thin(data.flowerHeads), [data, palette.decorDensity]);
-  const flowerStems = useMemo(() => thin(data.flowerStems), [data, palette.decorDensity]);
-  const tufts = useMemo(() => thin(data.tufts), [data, palette.decorDensity]);
-  const rocks = useMemo(() => thin(data.rocks), [data, palette.decorDensity]);
-  const shroomStems = useMemo(() => thin(data.shroomStems), [data, palette.decorDensity]);
-  const shroomCaps = useMemo(() => thin(data.shroomCaps), [data, palette.decorDensity]);
+  const thin = <T extends Voxel>(arr: T[]) =>
+    arr.filter((v) => v.u < palette.decorDensity);
+  const tufts = useMemo(
+    () => thin(data.tufts),
+    [data, palette.decorDensity],
+  );
+  // petals on the ground, always visible if palette allows
+  const groundPetals = useMemo(
+    () => thin(data.shroomStems),
+    [data, palette.decorDensity],
+  );
 
   const tuftColors = useMemo(
-    () => palette.grass.map((g) => `#${col.set(g).offsetHSL(0, 0.02, -0.16).getHexString()}`),
+    () =>
+      palette.grass.map((g) =>
+        `#${col.set(g).offsetHSL(0, 0.02, -0.16).getHexString()}`,
+      ),
     [palette],
   );
-  const canopyColors = useMemo(() => palette.foliage.map((c) => new THREE.Color(c)), [palette]);
-  const qrDark = useMemo(() => new THREE.Color(palette.qrDark), [palette]);
+
+  // use sakura foliage colors from palette
+  const sakuraFoliageColors = useMemo(
+    () => palette.foliage.map((c) => new THREE.Color(c)),
+    [palette],
+  );
+  const groundPetalColors = useMemo(
+    () => palette.foliage.map((c) => c),
+    [palette],
+  );
+
+  const qrDark = useMemo(
+    () => new THREE.Color(palette.qrDark),
+    [palette],
+  );
 
   useFrame((_, rawDt) => {
     const g = group.current;
@@ -435,18 +453,30 @@ export default function Tree({
     <>
       {/* trunk + decor collapse away when the code assembles */}
       <group ref={group}>
-        <Cubes items={data.trunk} colors={palette.trunk} geometry={geo} roughness={0.92} />
-        <Cubes items={flowerStems} colors={["#4c8a4a"]} geometry={geo} roughness={0.9} />
-        <Cubes items={flowerHeads} colors={palette.accent} geometry={geo} roughness={0.7} />
-        <Cubes items={tufts} colors={tuftColors} geometry={geo} roughness={0.9} />
-        <Cubes items={rocks} colors={[palette.rock]} geometry={geo} roughness={0.95} />
-        <Cubes items={shroomStems} colors={["#fdf3e3"]} geometry={geo} roughness={0.85} />
-        <Cubes items={shroomCaps} colors={[palette.accent[0]]} geometry={geo} roughness={0.6} />
+        <Cubes
+          items={data.trunk}
+          colors={palette.trunk}
+          geometry={geo}
+          roughness={0.92}
+        />
+        <Cubes
+          items={tufts}
+          colors={tuftColors}
+          geometry={geo}
+          roughness={0.9}
+        />
+        {/* Fallen petals on the path and ground */}
+        <Cubes
+          items={groundPetals}
+          colors={groundPetalColors}
+          geometry={geo}
+          roughness={0.8}
+        />
       </group>
       {/* the canopy stays — it IS the missing centre of the QR code */}
       <Canopy
         items={data.canopy}
-        colors={canopyColors}
+        colors={sakuraFoliageColors}
         geometry={geo}
         seed={seed}
         density={palette.foliageDensity}
