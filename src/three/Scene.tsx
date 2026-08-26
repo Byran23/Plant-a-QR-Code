@@ -11,7 +11,7 @@ import Birds from "./Birds";
 import Particles from "./Particles";
 import Clouds from "./Clouds";
 import Rain from "./Rain";
-import Superhero from "./Superhero";
+import Helicopter from "./Helicopter";
 
 const HALF_PI = Math.PI / 2;
 const UP = new THREE.Vector3(0, 1, 0);
@@ -246,7 +246,7 @@ export default function Scene({
         <Particles palette={palette} spread={grid.total * 0.52} top={grid.total * 0.52 + 5} />
         <Clouds total={grid.total} />
         {rain && <Rain total={grid.total} />}
-        <Superhero orbit={grid.total * 0.62} alt={16} />
+        <Helicopter orbit={grid.total * 0.62} alt={16} />
       </Canvas>
     </div>
   );
