@@ -46,18 +46,20 @@ interface SakuraSceneData {
 
 const FLAT_TILE_TOP = 0.14;
 
+// Authentic Cherry Blossom Hues
 const BLOSSOM_PALETTE = [
-  "#ffb1c4",
-  "#ffa3ba",
-  "#ffc2d1",
+  "#ffaec3",
+  "#ff9eb8",
+  "#ffbfd0",
   "#f78fa9",
-  "#ffdbe4",
+  "#ffdbe5",
+  "#ff8da9",
 ];
 
-const TRUNK_PALETTE = ["#543b2f", "#412a1f", "#674838", "#362117"];
-const BRANCH_COLOR = "#442b1f";
-const GRASS_PALETTE = ["#7db848", "#8ec755", "#6ba33b", "#a0d663"];
-const REED_PALETTE = ["#d982ab", "#e699be", "#c46e96"];
+const TRUNK_PALETTE = ["#523a2e", "#3d281c", "#634537", "#342016"];
+const BRANCH_COLOR = "#422a1e";
+const GRASS_PALETTE = ["#7eb947", "#8ec755", "#6ba33b", "#a1d764"];
+const REED_PALETTE = ["#d982ab", "#e89ec2", "#c46e96"];
 
 function generateSakuraScene(seed: number, grid: QRGrid, zone: ForestZone): SakuraSceneData {
   const rng = mulberry32(seed);
@@ -71,142 +73,147 @@ function generateSakuraScene(seed: number, grid: QRGrid, zone: ForestZone): Saku
   };
 
   const half = (grid.total - 1) / 2;
-  const H = 6.8;
+  const H = 6.6;
 
-  // 1. Trunk Segments
-  const rings = 14;
-  const ringH = (H * 0.48) / rings;
+  // 1. Smooth, Tapered Cylindrical Trunk
+  const rings = 16;
+  const ringH = (H * 0.46) / rings;
   for (let i = 0; i < rings; i++) {
     const t = i / rings;
-    const r = THREE.MathUtils.lerp(1.25, 0.75, Math.pow(t, 0.7));
+    const r = THREE.MathUtils.lerp(1.15, 0.65, Math.pow(t, 0.75));
     data.trunkSegments.push({
       x: 0,
       y: i * ringH + ringH * 0.5,
       z: 0,
       sx: r * 2,
-      sy: ringH * 0.94,
+      sy: ringH * 0.96,
       sz: r * 2,
       c: i % 2 === 0 ? 0 : 1,
       u: rng(),
     });
   }
 
-  // 2. Branches
-  const branchCount = 12;
-  const branchBaseY = H * 0.42;
+  // 2. Multi-Branch Wooden Scaffold
+  const branchCount = 14;
+  const branchBaseY = H * 0.4;
   for (let i = 0; i < branchCount; i++) {
-    const angle = (i / branchCount) * Math.PI * 2 + (rng() - 0.5) * 0.35;
-    const length = 2.8 + rng() * 1.8;
-    const slope = 0.32 + rng() * 0.45;
-    const steps = Math.ceil(length * 2.5);
+    const angle = (i / branchCount) * Math.PI * 2 + (rng() - 0.5) * 0.4;
+    const length = 2.4 + rng() * 2.2;
+    const slope = 0.28 + rng() * 0.48;
+    const steps = Math.ceil(length * 3);
 
     const dirX = Math.cos(angle);
     const dirZ = Math.sin(angle);
     const inv = 1 / (Math.hypot(dirX, slope, dirZ) || 1);
 
     let px = 0;
-    let py = branchBaseY + rng() * 0.7;
+    let py = branchBaseY + rng() * 0.8;
     let pz = 0;
 
     for (let s = 0; s < steps; s++) {
-      px += dirX * inv * 0.4;
-      py += slope * inv * 0.4;
-      pz += dirZ * inv * 0.4;
-      const thick = Math.max(0.18, 0.48 - (s / steps) * 0.32);
+      px += dirX * inv * 0.32;
+      py += slope * inv * 0.32;
+      pz += dirZ * inv * 0.32;
+      const thick = Math.max(0.12, 0.38 - (s / steps) * 0.26);
       data.branches.push({
         x: px,
         y: py,
         z: pz,
         sx: thick,
-        sy: thick * 1.2,
+        sy: thick * 1.3,
         sz: thick,
-        rx: (rng() - 0.5) * 0.1,
+        rx: (rng() - 0.5) * 0.2,
         ry: angle,
-        rz: (rng() - 0.5) * 0.1,
+        rz: (rng() - 0.5) * 0.2,
         c: 0,
         u: rng(),
       });
     }
   }
 
-  // 3. Canopy
-  const crownY = H + 0.6;
-  const maxCrownRadius = Math.max(1, zone.n * 0.62);
+  // 3. Dense, Organic Fluffy Canopy
+  const crownY = H + 0.5;
+  const maxCrownRadius = Math.max(1, zone.n * 0.65);
 
-  const pushCanopyLeaf = (mx: number, mz: number, pale: boolean, isHanging = false) => {
+  const pushCanopyLeaf = (mx: number, mz: number, pale: boolean, isDrooping = false) => {
     const distRatio = Math.min(1, Math.hypot(mx, mz) / maxCrownRadius);
-    const dome = Math.sqrt(Math.max(0, 1 - distRatio * distRatio));
+    // Multi-lobe organic dome shape
+    const domeNoise = Math.sin(mx * 1.2) * Math.cos(mz * 1.2) * 0.4;
+    const dome = Math.sqrt(Math.max(0, 1 - distRatio * distRatio)) * 3.2 + domeNoise;
 
-    const oy = isHanging
-      ? branchBaseY + 0.4 + (rng() - 0.5) * 0.8
-      : crownY + (dome * 3.0 - 1.2) + (rng() - 0.5) * 1.1;
+    const oy = isDrooping
+      ? branchBaseY + 0.2 + rng() * 1.1
+      : crownY + (dome - 1.3) + (rng() - 0.5) * 1.0;
 
     data.canopyLeaves.push({
-      ox: mx * (isHanging ? 1.05 : 0.95) + (rng() - 0.5) * 0.8,
+      ox: mx * (isDrooping ? 1.06 : 0.94) + (rng() - 0.5) * 0.9,
       oy,
-      oz: mz * (isHanging ? 1.05 : 0.95) + (rng() - 0.5) * 0.8,
-      os: isHanging ? 0.75 + rng() * 0.45 : 1.1 + rng() * 0.8,
+      oz: mz * (isDrooping ? 1.06 : 0.94) + (rng() - 0.5) * 0.9,
+      os: isDrooping ? 0.7 + rng() * 0.4 : 0.95 + rng() * 0.75,
       fx: mx,
       fz: mz,
       ci: pickIndex(rng, BLOSSOM_PALETTE.length),
       pale,
-      rotX: (rng() - 0.5) * 0.6,
+      rotX: rng() * Math.PI * 2,
       rotY: rng() * Math.PI * 2,
-      rotZ: (rng() - 0.5) * 0.6,
+      rotZ: rng() * Math.PI * 2,
       u: rng(),
     });
   };
 
+  // QR Modules in tree canopy
   let qrModuleCount = 0;
   for (let r = 0; r < zone.n; r++) {
     for (let c = 0; c < zone.n; c++) {
       const gr = zone.z0 + r;
       const gc = zone.x0 + c;
-      if (grid.data && grid.data[gr * grid.total + gc] === 1) {
+      if (grid?.data && grid.data[gr * grid.total + gc] === 1) {
         pushCanopyLeaf(gc - half, gr - half, false);
         qrModuleCount++;
       }
     }
   }
 
-  const fillerCount = Math.ceil(qrModuleCount * 2.2);
+  // Dense extra blossom clusters to build the full rounded silhouette
+  const fillerCount = Math.ceil(qrModuleCount * 3.0);
   for (let i = 0; i < fillerCount; i++) {
     const angle = rng() * Math.PI * 2;
     const rad = Math.sqrt(rng()) * maxCrownRadius * 0.98;
     pushCanopyLeaf(Math.cos(angle) * rad, Math.sin(angle) * rad, true);
   }
 
-  const droopCount = 20 + Math.floor(rng() * 8);
+  // Weeping hanging fringe clusters
+  const droopCount = 28 + Math.floor(rng() * 10);
   for (let i = 0; i < droopCount; i++) {
-    const angle = (i / droopCount) * Math.PI * 2 + (rng() - 0.5) * 0.25;
-    const rad = maxCrownRadius * (0.7 + rng() * 0.28);
+    const angle = (i / droopCount) * Math.PI * 2 + (rng() - 0.5) * 0.3;
+    const rad = maxCrownRadius * (0.65 + rng() * 0.3);
     pushCanopyLeaf(Math.cos(angle) * rad, Math.sin(angle) * rad, true, true);
   }
 
-  // 4. Ground Petals
-  const petalCount = 60 + Math.floor(rng() * 25);
+  // 4. Ground Fallen Petals
+  const petalCount = 75 + Math.floor(rng() * 30);
   for (let i = 0; i < petalCount; i++) {
     const angle = rng() * Math.PI * 2;
-    const rad = 0.6 + Math.sqrt(rng()) * Math.max(1, half - 1.0);
+    const rad = 0.5 + Math.sqrt(rng()) * Math.max(1, half - 0.8);
     data.groundPetals.push({
-      x: Math.cos(angle) * rad + (rng() - 0.5) * 0.35,
-      y: FLAT_TILE_TOP + 0.015,
-      z: Math.sin(angle) * rad + (rng() - 0.5) * 0.35,
-      sx: 0.28 + rng() * 0.2,
+      x: Math.cos(angle) * rad + (rng() - 0.5) * 0.4,
+      y: FLAT_TILE_TOP + 0.012,
+      z: Math.sin(angle) * rad + (rng() - 0.5) * 0.4,
+      sx: 0.24 + rng() * 0.18,
       sy: 0.02,
-      sz: 0.28 + rng() * 0.2,
+      sz: 0.24 + rng() * 0.18,
       ry: rng() * Math.PI * 2,
       c: pickIndex(rng, BLOSSOM_PALETTE.length),
       u: rng(),
     });
   }
 
-  // 5. Tufts
-  const perimeterTufts = 36 + Math.floor(rng() * 12);
+  // 5. Spiky Grass & Floral Accents
+  const perimeterTufts = 45 + Math.floor(rng() * 15);
   for (let i = 0; i < perimeterTufts; i++) {
-    const angle = (i / perimeterTufts) * Math.PI * 2 + (rng() - 0.5) * 0.18;
-    const rad = half - 1.5 + (rng() - 0.5) * 1.4;
-    const h = 0.45 + rng() * 0.55;
+    const angle = (i / perimeterTufts) * Math.PI * 2 + (rng() - 0.5) * 0.2;
+    const rad = half - 1.4 + (rng() - 0.5) * 1.5;
+    const h = 0.4 + rng() * 0.55;
     const x = Math.cos(angle) * rad;
     const z = Math.sin(angle) * rad;
 
@@ -214,28 +221,28 @@ function generateSakuraScene(seed: number, grid: QRGrid, zone: ForestZone): Saku
       x,
       y: FLAT_TILE_TOP + h / 2,
       z,
-      sx: 0.12,
+      sx: 0.1,
       sy: h,
-      sz: 0.12,
-      rx: (rng() - 0.5) * 0.2,
+      sz: 0.1,
+      rx: (rng() - 0.5) * 0.25,
       ry: rng() * Math.PI,
-      rz: (rng() - 0.5) * 0.2,
+      rz: (rng() - 0.5) * 0.25,
       c: pickIndex(rng, GRASS_PALETTE.length),
       u: rng(),
     });
 
-    if (rng() < 0.45) {
-      const rh = h * (0.8 + rng() * 0.35);
+    if (rng() < 0.5) {
+      const rh = h * (0.8 + rng() * 0.4);
       data.pinkReeds.push({
-        x: x + (rng() - 0.5) * 0.3,
+        x: x + (rng() - 0.5) * 0.35,
         y: FLAT_TILE_TOP + rh / 2,
-        z: z + (rng() - 0.5) * 0.3,
-        sx: 0.09,
+        z: z + (rng() - 0.5) * 0.35,
+        sx: 0.08,
         sy: rh,
-        sz: 0.09,
-        rx: (rng() - 0.5) * 0.3,
+        sz: 0.08,
+        rx: (rng() - 0.5) * 0.35,
         ry: rng() * Math.PI,
-        rz: (rng() - 0.5) * 0.3,
+        rz: (rng() - 0.5) * 0.35,
         c: pickIndex(rng, REED_PALETTE.length),
         u: rng(),
       });
@@ -250,7 +257,7 @@ function generateSakuraScene(seed: number, grid: QRGrid, zone: ForestZone): Saku
 const tmp = new THREE.Object3D();
 const col = new THREE.Color();
 
-function SafeInstancedMesh({
+function InstancedBatch({
   items,
   colors,
   geometry,
@@ -295,7 +302,11 @@ function SafeInstancedMesh({
   );
 }
 
-function CanopyMesh({
+/**
+ * Organic blossom cloud canopy that morphs from low-poly petal clusters
+ * into flat QR module squares.
+ */
+function OrganicCanopyMesh({
   items,
   colors,
   geometry,
@@ -342,25 +353,34 @@ function CanopyMesh({
     for (let i = 0; i < visible.length; i++) {
       const v = visible[i];
       const grow = easeOutBack(clamp01((s.intro * 1.35 - v.u * 0.35) / 0.55));
+
+      // Morph from 3D clustered canopy down to flat module position
       tmp.position.set(
         v.ox + (v.fx - v.ox) * q,
         v.oy + (flatY - v.oy) * q,
         v.oz + (v.fz - v.oz) * q,
       );
+
+      // In tree mode: organic aspect ratio; on flatten: flat square tile
       const sxz = v.os + ((v.pale ? 0.0001 : 0.96) - v.os) * q;
-      const sy = v.os + ((v.pale ? 0.0001 : 0.16) - v.os) * q;
+      const sy = (v.os * 0.75) + ((v.pale ? 0.0001 : 0.16) - (v.os * 0.75)) * q;
+
       tmp.scale.set(
         Math.max(0.0001, sxz * grow),
         Math.max(0.0001, sy * grow),
         Math.max(0.0001, sxz * grow),
       );
+
+      // Interpolate rotation to face perfectly aligned when flat
       tmp.rotation.set(
         v.rotX * (1 - q),
         v.rotY * (1 - q),
         v.rotZ * (1 - q),
       );
+
       tmp.updateMatrix();
       m.setMatrixAt(i, tmp.matrix);
+
       col.copy(colors[v.ci % colors.length] || colors[0]);
       if (!v.pale) col.lerp(dark, q);
       m.setColorAt(i, col);
@@ -379,7 +399,7 @@ function CanopyMesh({
       receiveShadow
       frustumCulled={false}
     >
-      <meshStandardMaterial roughness={0.65} />
+      <meshStandardMaterial roughness={0.6} metalness={0.05} />
     </instancedMesh>
   );
 }
@@ -404,10 +424,12 @@ export default function Tree({
     intro.current = 0;
   }, [seed]);
 
-  // Standard Three.js Geometries to prevent any missing class / bundle loading errors
-  const boxGeo = useMemo(() => new THREE.BoxGeometry(1, 1, 1), []);
-  const cylinderGeo = useMemo(() => new THREE.CylinderGeometry(0.5, 0.5, 1, 12), []);
-  const petalGeo = useMemo(() => new THREE.BoxGeometry(1, 0.6, 1), []);
+  // Faceted 12-sided dodecahedron for organic, non-boxy blossom clusters
+  const blossomClusterGeo = useMemo(() => new THREE.DodecahedronGeometry(0.65, 0), []);
+  const trunkGeo = useMemo(() => new THREE.CylinderGeometry(0.5, 0.5, 1, 14), []);
+  const branchGeo = useMemo(() => new THREE.CylinderGeometry(0.3, 0.4, 1, 6), []);
+  const petalGeo = useMemo(() => new THREE.CylinderGeometry(0.35, 0.35, 0.05, 5), []);
+  const bladeGeo = useMemo(() => new THREE.ConeGeometry(0.12, 1, 4), []);
 
   const data = useMemo(() => generateSakuraScene(seed, grid, zone), [seed, grid, zone]);
 
@@ -433,42 +455,48 @@ export default function Tree({
   return (
     <>
       <group ref={group}>
-        <SafeInstancedMesh
+        {/* Ribbed Trunk */}
+        <InstancedBatch
           items={data.trunkSegments}
           colors={TRUNK_PALETTE}
-          geometry={cylinderGeo}
+          geometry={trunkGeo}
           roughness={0.92}
         />
-        <SafeInstancedMesh
+        {/* Angular Wood Branches */}
+        <InstancedBatch
           items={data.branches}
           colors={[BRANCH_COLOR]}
-          geometry={boxGeo}
+          geometry={branchGeo}
           roughness={0.88}
         />
-        <SafeInstancedMesh
+        {/* 5-Sided Ground Petals */}
+        <InstancedBatch
           items={data.groundPetals}
           colors={BLOSSOM_PALETTE}
           geometry={petalGeo}
-          roughness={0.6}
+          roughness={0.55}
         />
-        <SafeInstancedMesh
+        {/* Tapered Grass Blades */}
+        <InstancedBatch
           items={data.grassBlades}
           colors={GRASS_PALETTE}
-          geometry={boxGeo}
+          geometry={bladeGeo}
           roughness={0.85}
         />
-        <SafeInstancedMesh
+        {/* Accent Floral Reeds */}
+        <InstancedBatch
           items={data.pinkReeds}
           colors={REED_PALETTE}
-          geometry={boxGeo}
+          geometry={bladeGeo}
           roughness={0.7}
         />
       </group>
 
-      <CanopyMesh
+      {/* Non-square, organic faceted blossom canopy */}
+      <OrganicCanopyMesh
         items={data.canopyLeaves}
         colors={canopyColors}
-        geometry={petalGeo}
+        geometry={blossomClusterGeo}
         seed={seed}
         density={palette?.foliageDensity ?? 1.0}
         dark={qrDark}
