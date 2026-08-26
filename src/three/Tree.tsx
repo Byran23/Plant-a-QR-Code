@@ -1,13 +1,12 @@
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
-import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 import type { Palette } from "../lib/palettes";
 import type { ForestZone, QRGrid } from "../lib/qr";
 import { mulberry32, pickIndex } from "../lib/random";
 import { morph, clamp01, easeOutBack, smooth01 } from "./shared";
 
-interface Voxel {
+interface InstanceItem {
   x: number;
   y: number;
   z: number;
@@ -21,7 +20,7 @@ interface Voxel {
   u: number;
 }
 
-interface CanopyVoxel {
+interface CanopyLeaf {
   ox: number;
   oy: number;
   oz: number;
@@ -36,187 +35,220 @@ interface CanopyVoxel {
   u: number;
 }
 
-interface TreeData {
-  trunkSegments: Voxel[];
-  branches: Voxel[];
-  canopy: CanopyVoxel[];
-  groundPetals: Voxel[];
-  grassTufts: Voxel[];
+interface SakuraSceneData {
+  trunkSegments: InstanceItem[];
+  branches: InstanceItem[];
+  canopyLeaves: CanopyLeaf[];
+  groundPetals: InstanceItem[];
+  grassBlades: InstanceItem[];
+  pinkReeds: InstanceItem[];
 }
 
 const FLAT_TILE_TOP = 0.14;
 
-// Default Sakura color palette fallbacks
-const SAKURA_BLOSSOMS = ["#ffb7c5", "#ff9ebb", "#ffaec2", "#fcd5e0", "#ffc4d6"];
-const TRUNK_RINGS = ["#5c4033", "#43281c", "#6b493b", "#3b2317"];
-const SAKURA_GRASS = ["#89c053", "#9bd45c", "#73ad43", "#e899b8"];
+// Dedicated color arrays matching the artwork
+const BLOSSOM_PALETTE = [
+  "#ffb1c4", // Soft Sakura Pink
+  "#ffa3ba", // Vibrant Mid Pink
+  "#ffc2d1", // Pale Highlight Pink
+  "#f78fa9", // Deeper Blossom Pink
+  "#ffdbe4", // White-Pink Petal Tip
+];
 
-function generateSakuraTree(seed: number, grid: QRGrid, zone: ForestZone): TreeData {
+const TRUNK_PALETTE = ["#543b2f", "#412a1f", "#674838", "#362117"];
+const BRANCH_COLOR = "#442b1f";
+const GRASS_PALETTE = ["#7db848", "#8ec755", "#6ba33b", "#a0d663"];
+const REED_PALETTE = ["#d982ab", "#e699be", "#c46e96"];
+
+function generateSakuraScene(seed: number, grid: QRGrid, zone: ForestZone): SakuraSceneData {
   const rng = mulberry32(seed);
-  const d: TreeData = {
+  const data: SakuraSceneData = {
     trunkSegments: [],
     branches: [],
-    canopy: [],
+    canopyLeaves: [],
     groundPetals: [],
-    grassTufts: [],
+    grassBlades: [],
+    pinkReeds: [],
   };
 
   const half = (grid.total - 1) / 2;
-  const H = (zone.n >= 11 ? 7.5 : zone.n >= 7 ? 6.5 : 5.2);
+  const H = 6.8;
 
-  // 1. Trunk — Stacked ring segments to create the segmented cylindrical bark look
-  const rings = 12;
-  const ringHeight = (H * 0.55) / rings;
+  // 1. Segmented Ribbed Trunk
+  const rings = 14;
+  const ringH = (H * 0.48) / rings;
   for (let i = 0; i < rings; i++) {
     const t = i / rings;
-    const radius = THREE.MathUtils.lerp(1.4, 0.75, Math.pow(t, 0.8));
-    d.trunkSegments.push({
-      x: (rng() - 0.5) * 0.05,
-      y: i * ringHeight + ringHeight * 0.5,
-      z: (rng() - 0.5) * 0.05,
-      sx: radius * 2,
-      sy: ringHeight * 0.98,
-      sz: radius * 2,
-      c: i % 2 === 0 ? 0 : (rng() > 0.4 ? 1 : 2),
+    const r = THREE.MathUtils.lerp(1.25, 0.75, Math.pow(t, 0.7));
+    data.trunkSegments.push({
+      x: 0,
+      y: i * ringH + ringH * 0.5,
+      z: 0,
+      sx: r * 2,
+      sy: ringH * 0.94,
+      sz: r * 2,
+      c: i % 2 === 0 ? 0 : 1,
       u: rng(),
     });
   }
 
-  // 2. Scaffold branches radiating outwards and upwards
-  const numBranches = 9 + Math.floor(rng() * 4);
-  const branchStartY = H * 0.45;
-  for (let i = 0; i < numBranches; i++) {
-    const angle = (i / numBranches) * Math.PI * 2 + (rng() - 0.5) * 0.4;
-    const length = 2.4 + rng() * (zone.n * 0.38);
-    const elevation = 0.25 + rng() * 0.45;
-    const steps = Math.ceil(length * 2.2);
+  // 2. Dark Inner Branches (Radial Scaffold)
+  const branchCount = 12;
+  const branchBaseY = H * 0.42;
+  for (let i = 0; i < branchCount; i++) {
+    const angle = (i / branchCount) * Math.PI * 2 + (rng() - 0.5) * 0.35;
+    const length = 2.8 + rng() * 1.8;
+    const slope = 0.32 + rng() * 0.45;
+    const steps = Math.ceil(length * 2.5);
 
     const dirX = Math.cos(angle);
     const dirZ = Math.sin(angle);
-    const inv = 1 / Math.hypot(dirX, elevation, dirZ);
+    const inv = 1 / Math.hypot(dirX, slope, dirZ);
 
     let px = 0;
-    let py = branchStartY + rng() * 0.8;
+    let py = branchBaseY + rng() * 0.7;
     let pz = 0;
 
     for (let s = 0; s < steps; s++) {
-      px += dirX * inv * 0.45;
-      py += elevation * inv * 0.45;
-      pz += dirZ * inv * 0.45;
-      const thick = Math.max(0.22, 0.55 - (s / steps) * 0.38);
-      d.branches.push({
+      px += dirX * inv * 0.4;
+      py += slope * inv * 0.4;
+      pz += dirZ * inv * 0.4;
+      const thick = Math.max(0.18, 0.48 - (s / steps) * 0.32);
+      data.branches.push({
         x: px,
         y: py,
         z: pz,
         sx: thick,
-        sy: thick * 1.1,
+        sy: thick * 1.2,
         sz: thick,
-        c: 1,
+        rx: (rng() - 0.5) * 0.1,
+        ry: angle,
+        rz: (rng() - 0.5) * 0.1,
+        c: 0,
         u: rng(),
       });
     }
   }
 
-  // 3. Canopy — Tiered, fluffy, cloud-like foliage with drooping fringe clusters
-  const crownCenterY = H + 0.8;
-  const crownRadius = (zone.n * 0.55);
+  // 3. Dense Canopy — Tiered Crown + Hanging Tendrils
+  const crownY = H + 0.6;
+  const maxCrownRadius = zone.n * 0.62;
 
-  const pushCanopy = (mx: number, mz: number, pale: boolean, isDrooping = false) => {
-    const distSq = (mx * mx + mz * mz) / (crownRadius * crownRadius);
-    const domeHeight = Math.sqrt(Math.max(0, 1 - Math.min(1, distSq))) * 2.6;
+  const pushCanopyLeaf = (mx: number, mz: number, pale: boolean, isHanging = false) => {
+    const distRatio = Math.min(1, Math.hypot(mx, mz) / maxCrownRadius);
+    const dome = Math.sqrt(Math.max(0, 1 - distRatio * distRatio));
     
-    const oy = isDrooping
-      ? branchStartY + 0.3 + (rng() - 0.5) * 0.6
-      : crownCenterY + (domeHeight - 0.9) + (rng() - 0.5) * 1.2;
+    const oy = isHanging
+      ? branchBaseY + 0.4 + (rng() - 0.5) * 0.8
+      : crownY + (dome * 3.0 - 1.2) + (rng() - 0.5) * 1.1;
 
-    const spread = isDrooping ? 1.05 : 0.95;
-
-    d.canopy.push({
-      ox: mx * spread + (rng() - 0.5) * 0.9,
+    data.canopyLeaves.push({
+      ox: mx * (isHanging ? 1.05 : 0.95) + (rng() - 0.5) * 0.8,
       oy,
-      oz: mz * spread + (rng() - 0.5) * 0.9,
-      os: isDrooping ? 0.65 + rng() * 0.4 : 0.85 + rng() * 0.75,
+      oz: mz * (isHanging ? 1.05 : 0.95) + (rng() - 0.5) * 0.8,
+      os: isHanging ? 0.75 + rng() * 0.45 : 1.1 + rng() * 0.8,
       fx: mx,
       fz: mz,
-      ci: pickIndex(rng, 5),
+      ci: pickIndex(rng, BLOSSOM_PALETTE.length),
       pale,
-      rotX: (rng() - 0.5) * 0.35,
-      rotY: rng() * Math.PI,
-      rotZ: (rng() - 0.5) * 0.35,
+      rotX: (rng() - 0.5) * 0.6,
+      rotY: rng() * Math.PI * 2,
+      rotZ: (rng() - 0.5) * 0.6,
       u: rng(),
     });
   };
 
-  let darkCount = 0;
+  // Assign QR data modules to leaf positions
+  let qrModuleCount = 0;
   for (let r = 0; r < zone.n; r++) {
     for (let c = 0; c < zone.n; c++) {
       const gr = zone.z0 + r;
       const gc = zone.x0 + c;
       if (grid.data[gr * grid.total + gc] === 1) {
-        pushCanopy(gc - half, gr - half, false);
-        darkCount++;
+        pushCanopyLeaf(gc - half, gr - half, false);
+        qrModuleCount++;
       }
     }
   }
 
-  // Additional decorative puffs to fill canopy volume
-  const extraFluff = Math.ceil(darkCount * 1.6);
-  for (let i = 0; i < extraFluff; i++) {
+  // Add voluminous decorative blossom clusters
+  const fillerCount = Math.ceil(qrModuleCount * 2.2);
+  for (let i = 0; i < fillerCount; i++) {
     const angle = rng() * Math.PI * 2;
-    const rad = Math.sqrt(rng()) * crownRadius * 0.95;
-    const mx = Math.cos(angle) * rad;
-    const mz = Math.sin(angle) * rad;
-    pushCanopy(mx, mz, true);
+    const rad = Math.sqrt(rng()) * maxCrownRadius * 0.98;
+    pushCanopyLeaf(Math.cos(angle) * rad, Math.sin(angle) * rad, true);
   }
 
-  // Drooping hanging clusters under the crown perimeter
-  const droopCount = 14 + Math.floor(rng() * 6);
+  // Drooping perimeter leaf tendrils
+  const droopCount = 20 + Math.floor(rng() * 8);
   for (let i = 0; i < droopCount; i++) {
-    const angle = (i / droopCount) * Math.PI * 2 + (rng() - 0.5) * 0.3;
-    const rad = crownRadius * (0.65 + rng() * 0.3);
-    const mx = Math.cos(angle) * rad;
-    const mz = Math.sin(angle) * rad;
-    pushCanopy(mx, mz, true, true);
+    const angle = (i / droopCount) * Math.PI * 2 + (rng() - 0.5) * 0.25;
+    const rad = maxCrownRadius * (0.7 + rng() * 0.28);
+    pushCanopyLeaf(Math.cos(angle) * rad, Math.sin(angle) * rad, true, true);
   }
 
-  // 4. Ground details — Fallen pink petals on the central stones & perimeter grass
-  const petalCount = 42 + Math.floor(rng() * 18);
+  // 4. Fallen Petals on the Patio
+  const petalCount = 60 + Math.floor(rng() * 25);
   for (let i = 0; i < petalCount; i++) {
     const angle = rng() * Math.PI * 2;
-    const rad = 0.8 + Math.sqrt(rng()) * (half - 1.2);
-    d.groundPetals.push({
-      x: Math.cos(angle) * rad + (rng() - 0.5) * 0.3,
-      y: FLAT_TILE_TOP + 0.02,
-      z: Math.sin(angle) * rad + (rng() - 0.5) * 0.3,
-      sx: 0.22 + rng() * 0.2,
-      sy: 0.025,
-      sz: 0.22 + rng() * 0.2,
-      ry: rng() * Math.PI,
-      c: pickIndex(rng, 5),
+    const rad = 0.6 + Math.sqrt(rng()) * (half - 1.0);
+    data.groundPetals.push({
+      x: Math.cos(angle) * rad + (rng() - 0.5) * 0.35,
+      y: FLAT_TILE_TOP + 0.015,
+      z: Math.sin(angle) * rad + (rng() - 0.5) * 0.35,
+      sx: 0.28 + rng() * 0.2,
+      sy: 0.02,
+      sz: 0.28 + rng() * 0.2,
+      ry: rng() * Math.PI * 2,
+      c: pickIndex(rng, BLOSSOM_PALETTE.length),
       u: rng(),
     });
   }
 
-  // Perimeter tufts with mixed grass/sakura hues
-  const tuftCount = 28 + Math.floor(rng() * 10);
-  for (let i = 0; i < tuftCount; i++) {
-    const angle = (i / tuftCount) * Math.PI * 2 + (rng() - 0.5) * 0.2;
-    const rad = half - 1.8 + (rng() - 0.5) * 1.2;
-    const h = 0.35 + rng() * 0.45;
-    d.grassTufts.push({
-      x: Math.cos(angle) * rad,
+  // 5. Perimeter Grassy Borders & Spiky Flora
+  const perimeterTufts = 36 + Math.floor(rng() * 12);
+  for (let i = 0; i < perimeterTufts; i++) {
+    const angle = (i / perimeterTufts) * Math.PI * 2 + (rng() - 0.5) * 0.18;
+    const rad = half - 1.5 + (rng() - 0.5) * 1.4;
+    const h = 0.45 + rng() * 0.55;
+    const x = Math.cos(angle) * rad;
+    const z = Math.sin(angle) * rad;
+
+    // Green grass blade cluster
+    data.grassBlades.push({
+      x,
       y: FLAT_TILE_TOP + h / 2,
-      z: Math.sin(angle) * rad,
+      z,
       sx: 0.12,
       sy: h,
       sz: 0.12,
+      rx: (rng() - 0.5) * 0.2,
       ry: rng() * Math.PI,
-      c: rng() > 0.3 ? pickIndex(rng, 3) : 3,
+      rz: (rng() - 0.5) * 0.2,
+      c: pickIndex(rng, GRASS_PALETTE.length),
       u: rng(),
     });
+
+    // Pink / Lavender accent reeds
+    if (rng() < 0.45) {
+      const rh = h * (0.8 + rng() * 0.35);
+      data.pinkReeds.push({
+        x: x + (rng() - 0.5) * 0.3,
+        y: FLAT_TILE_TOP + rh / 2,
+        z: z + (rng() - 0.5) * 0.3,
+        sx: 0.09,
+        sy: rh,
+        sz: 0.09,
+        rx: (rng() - 0.5) * 0.3,
+        ry: rng() * Math.PI,
+        rz: (rng() - 0.5) * 0.3,
+        c: pickIndex(rng, REED_PALETTE.length),
+        u: rng(),
+      });
+    }
   }
 
-  return d;
+  return data;
 }
 
 /* ------------------------------------------------------------------ */
@@ -224,13 +256,13 @@ function generateSakuraTree(seed: number, grid: QRGrid, zone: ForestZone): TreeD
 const tmp = new THREE.Object3D();
 const col = new THREE.Color();
 
-function InstancedElements({
+function InstancedBatch({
   items,
   colors,
   geometry,
-  roughness = 0.85,
+  roughness = 0.8,
 }: {
-  items: Voxel[];
+  items: InstanceItem[];
   colors: string[];
   geometry: THREE.BufferGeometry;
   roughness?: number;
@@ -269,7 +301,10 @@ function InstancedElements({
   );
 }
 
-function CanopyCloud({
+/**
+ * Sakura Blossom Leaf Cloud with interactive morphing to flat QR matrix
+ */
+function SakuraCanopyMesh({
   items,
   colors,
   geometry,
@@ -277,7 +312,7 @@ function CanopyCloud({
   density,
   dark,
 }: {
-  items: CanopyVoxel[];
+  items: CanopyLeaf[];
   colors: THREE.Color[];
   geometry: THREE.BufferGeometry;
   seed: number;
@@ -353,14 +388,14 @@ function CanopyCloud({
       frustumCulled={false}
       dispose={null}
     >
-      <meshStandardMaterial roughness={0.75} />
+      <meshStandardMaterial roughness={0.65} />
     </instancedMesh>
   );
 }
 
 /* ------------------------------------------------------------------ */
 
-export default function Tree({
+export default function SakuraTree({
   seed,
   palette,
   grid,
@@ -378,28 +413,18 @@ export default function Tree({
     intro.current = 0;
   }, [seed]);
 
-  const boxGeo = useMemo(() => new RoundedBoxGeometry(1, 1, 1, 2, 0.16), []);
-  const cylinderGeo = useMemo(() => new THREE.CylinderGeometry(0.5, 0.5, 1, 10), []);
+  // Leaf/Petal geometry: faceted rounded box to capture soft light bouncing
+  const leafGeo = useMemo(() => new RoundedBoxGeometry(1, 0.7, 1, 2, 0.2), []);
+  const trunkGeo = useMemo(() => new THREE.CylinderGeometry(0.5, 0.5, 1, 12), []);
+  const boxGeo = useMemo(() => new RoundedBoxGeometry(1, 1, 1, 2, 0.12), []);
 
-  const data = useMemo(() => generateSakuraTree(seed, grid, zone), [seed, grid, zone]);
+  const data = useMemo(() => generateSakuraScene(seed, grid, zone), [seed, grid, zone]);
 
   const canopyColors = useMemo(
-    () => (palette.foliage?.length ? palette.foliage : SAKURA_BLOSSOMS).map((c) => new THREE.Color(c)),
-    [palette],
+    () => BLOSSOM_PALETTE.map((c) => new THREE.Color(c)),
+    [],
   );
-  const trunkColors = useMemo(
-    () => (palette.trunk?.length ? palette.trunk : TRUNK_RINGS),
-    [palette],
-  );
-  const petalColors = useMemo(
-    () => (palette.foliage?.length ? palette.foliage : SAKURA_BLOSSOMS),
-    [palette],
-  );
-  const tuftColors = useMemo(
-    () => (palette.grass?.length ? palette.grass : SAKURA_GRASS),
-    [palette],
-  );
-  const qrDark = useMemo(() => new THREE.Color(palette.qrDark), [palette]);
+  const qrDark = useMemo(() => new THREE.Color(palette.qrDark || "#c84e62"), [palette]);
 
   useFrame((_, rawDt) => {
     const g = group.current;
@@ -415,42 +440,50 @@ export default function Tree({
 
   return (
     <>
+      {/* Structural Elements (Collapses away when QR assembles) */}
       <group ref={group}>
-        {/* Cylindrical banded bark */}
-        <InstancedElements
+        {/* Ribbed Cylindrical Trunk */}
+        <InstancedBatch
           items={data.trunkSegments}
-          colors={trunkColors}
-          geometry={cylinderGeo}
+          colors={TRUNK_PALETTE}
+          geometry={trunkGeo}
           roughness={0.92}
         />
-        {/* Wood scaffold branches */}
-        <InstancedElements
+        {/* Dark Timber Branches */}
+        <InstancedBatch
           items={data.branches}
-          colors={trunkColors}
+          colors={[BRANCH_COLOR]}
           geometry={boxGeo}
-          roughness={0.9}
+          roughness={0.88}
         />
-        {/* Fallen petals on the pavement tiles */}
-        <InstancedElements
+        {/* Scattered Ground Petals */}
+        <InstancedBatch
           items={data.groundPetals}
-          colors={petalColors}
+          colors={BLOSSOM_PALETTE}
+          geometry={leafGeo}
+          roughness={0.6}
+        />
+        {/* Perimeter Green Grass */}
+        <InstancedBatch
+          items={data.grassBlades}
+          colors={GRASS_PALETTE}
+          geometry={boxGeo}
+          roughness={0.85}
+        />
+        {/* Perimeter Pink Reeds */}
+        <InstancedBatch
+          items={data.pinkReeds}
+          colors={REED_PALETTE}
           geometry={boxGeo}
           roughness={0.7}
         />
-        {/* Perimeter accent tufts */}
-        <InstancedElements
-          items={data.grassTufts}
-          colors={tuftColors}
-          geometry={boxGeo}
-          roughness={0.9}
-        />
       </group>
 
-      {/* Blossom canopy and morph modules */}
-      <CanopyCloud
-        items={data.canopy}
+      {/* Blossom Canopy (Stays and assembles into the QR code modules) */}
+      <SakuraCanopyMesh
+        items={data.canopyLeaves}
         colors={canopyColors}
-        geometry={boxGeo}
+        geometry={leafGeo}
         seed={seed}
         density={palette.foliageDensity ?? 1.0}
         dark={qrDark}
