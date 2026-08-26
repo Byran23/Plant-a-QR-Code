@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { morph, smooth01, clamp01, easeOutBack } from "./shared";
 
-// High-clarity 2-sided canvas texture renderer with Roboto font and solid high-contrast fill
+// High-clarity 2-sided canvas texture renderer with solid Roboto fill
 function createBannerTextures(text: string) {
   const canvasFront = document.createElement("canvas");
   const canvasBack = document.createElement("canvas");
@@ -20,32 +20,27 @@ function createBannerTextures(text: string) {
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, 2048, 512);
 
-    // Border trims
-    ctx.fillStyle = "#e11d48";
-    ctx.fillRect(0, 0, 2048, 24);
-    ctx.fillRect(0, 488, 2048, 24);
+    // Decorative edge borders
+    ctx.fillStyle = "#be123c"; // Crimson red border
+    ctx.fillRect(0, 0, 2048, 28);
+    ctx.fillRect(0, 484, 2048, 28);
 
-    ctx.fillStyle = "#f59e0b";
-    ctx.fillRect(0, 24, 2048, 12);
-    ctx.fillRect(0, 476, 2048, 12);
+    ctx.fillStyle = "#f59e0b"; // Golden amber trim
+    ctx.fillRect(0, 28, 2048, 14);
+    ctx.fillRect(0, 470, 2048, 14);
 
     if (isBack) {
       ctx.translate(2048, 0);
       ctx.scale(-1, 1);
     }
 
-    // Explicit Roboto typography
+    // Bold Roboto typography
     ctx.font = "900 132px 'Roboto', sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
 
-    // Text outer stroke for crisp separation
-    ctx.lineWidth = 14;
-    ctx.strokeStyle = "#881337";
-    ctx.strokeText(text, 1024, 256);
-
-    // Solid bold fill color
-    ctx.fillStyle = "#be123c";
+    // Solid filled color (no stroke)
+    ctx.fillStyle = "#e11d48";
     ctx.fillText(text, 1024, 256);
   };
 
@@ -256,7 +251,7 @@ export default function Helicopter({
         scale={[0.55, 0.52, 0.55]}
       />
 
-      {/* Side Accent */}
+      {/* Side Decorative Accent */}
       <mesh
         geometry={boxGeo}
         material={yellowAccentMat}
@@ -329,7 +324,7 @@ export default function Helicopter({
         <mesh geometry={cylinderGeo} material={metalMat} position={[0.32, 0.25, -0.4]} scale={[0.035, 0.45, 0.035]} />
       </group>
 
-      {/* Tow Lines & Trailing Double-Sided Roboto Banner */}
+      {/* Trailing Banner */}
       <group position={[0, -0.2, -2.25]}>
         <mesh
           geometry={cylinderGeo}
