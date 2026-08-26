@@ -10,6 +10,7 @@ import Covers from "./Covers";
 import Birds from "./Birds";
 import Particles from "./Particles";
 import Clouds from "./Clouds";
+import Rain from "./Rain";
 
 const HALF_PI = Math.PI / 2;
 const UP = new THREE.Vector3(0, 1, 0);
@@ -141,6 +142,9 @@ export default function Scene({
   const zone = useMemo(() => computeZone(grid.size), [grid]);
   const shadowBound = grid.total * 0.8 + 6;
 
+  const isNight = palette.weather === "night";
+  const isRain = palette.weather === "rainy";
+
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     const r = rig.current;
     r.dragging = true;
@@ -176,6 +180,14 @@ export default function Scene({
     r.dT = THREE.MathUtils.clamp(r.dT * (1 + e.deltaY * 0.0009), 0.62, 1.9);
   };
 
+  const seasonMap: Record<string, number> = {
+    spring: 0,
+    summer: 1,
+    autumn: 2,
+    winter: 3,
+  };
+  const seasonIndex = seasonMap[palette.baseId] ?? 0;
+
   return (
     <div
       className="scene-grab absolute inset-0 z-10 focus:outline-none"
@@ -199,16 +211,19 @@ export default function Scene({
         camera={{ fov: 30, near: 0.5, far: 4000, position: [40, 32, 40] }}
         onCreated={({ gl }) => {
           gl.toneMapping = THREE.ACESFilmicToneMapping;
-          gl.toneMappingExposure = 1.06;
+          gl.toneMappingExposure = isNight ? 0.8 : isRain ? 0.95 : 1.06;
         }}
       >
         <Rig rig={rig} qr={qr} total={grid.total} palette={palette} hemi={hemi} />
         <fog attach="fog" args={[palette.fog, 70, 320]} />
 
-        <hemisphereLight ref={hemi} args={[palette.hemiSky, palette.hemiGround, 1.05]} />
+        <hemisphereLight
+          ref={hemi}
+          args={[palette.hemiSky, palette.hemiGround, isNight ? 0.4 : isRain ? 0.75 : 1.05]}
+        />
         <directionalLight
           position={[grid.total * 0.7, grid.total * 1.1, grid.total * 0.42]}
-          intensity={2.4}
+          intensity={isNight ? 0.45 : isRain ? 1.1 : 2.4}
           color={palette.sun}
           castShadow
           shadow-mapSize={[2048, 2048]}
@@ -222,19 +237,32 @@ export default function Scene({
         />
         <directionalLight
           position={[-grid.total * 0.6, grid.total * 0.35, -grid.total * 0.55]}
-          intensity={0.5}
-          color="#cfe2ff"
+          intensity={isNight ? 0.2 : 0.5}
+          color={isNight ? "#475569" : "#cfe2ff"}
         />
+
+        {isNight && (
+          <pointLight
+            position={[0, 8, 0]}
+            intensity={1.2}
+            color="#ffb6cd"
+            distance={20}
+          />
+        )}
 
         <Ground grid={grid} palette={palette} seed={seed} />
         <Covers grid={grid} zone={zone} palette={palette} seed={seed} />
         <Tree seed={seed} palette={palette} grid={grid} zone={zone} />
+        
         <Birds
           orbit={Math.min(zone.n * 0.6 + 3.5, grid.total * 0.42)}
-          alt={9 + zone.n * 0.25}
+          alt={14 + zone.n * 0.25}
+          season={seasonIndex}
         />
+        
         <Particles palette={palette} spread={grid.total * 0.52} top={grid.total * 0.52 + 5} />
-        <Clouds total={grid.total} />
+        {!isRain && <Clouds total={grid.total} />}
+        {isRain && <Rain total={grid.total} />}
       </Canvas>
     </div>
   );

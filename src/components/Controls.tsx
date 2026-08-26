@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import {
   Check,
+  CloudRain,
   Copy,
   Dices,
   Download,
@@ -8,11 +9,14 @@ import {
   Flower2,
   Leaf,
   Link2,
+  Moon,
   QrCode,
   RotateCcw,
   Snowflake,
   Sun,
+  SunMedium,
 } from "lucide-react";
+import type { Weather } from "../lib/palettes";
 import { cn } from "../utils/cn";
 
 const SEASON_UI = [
@@ -20,6 +24,12 @@ const SEASON_UI = [
   { label: "Summer", icon: Sun, tint: "hover:bg-emerald-100/90" },
   { label: "Autumn", icon: Leaf, tint: "hover:bg-amber-100/90" },
   { label: "Winter", icon: Snowflake, tint: "hover:bg-sky-100/90" },
+];
+
+const WEATHER_UI: { id: Weather; label: string; icon: typeof SunMedium }[] = [
+  { id: "day", label: "Day", icon: SunMedium },
+  { id: "night", label: "Night", icon: Moon },
+  { id: "rainy", label: "Rain", icon: CloudRain },
 ];
 
 const iconBtn =
@@ -31,6 +41,8 @@ export default function Controls({
   onCommit,
   season,
   onSeason,
+  weather,
+  onWeather,
   isCustom,
   leafValue,
   groundValue,
@@ -50,6 +62,8 @@ export default function Controls({
   onCommit: () => void;
   season: number;
   onSeason: (i: number) => void;
+  weather: Weather;
+  onWeather: (w: Weather) => void;
   isCustom: boolean;
   leafValue: string;
   groundValue: string;
@@ -69,7 +83,7 @@ export default function Controls({
       initial={{ y: 90, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ type: "spring", stiffness: 120, damping: 17, delay: 0.35 }}
-      className="pointer-events-auto w-[min(94vw,840px)] rounded-[26px] border border-rose-900/15 bg-white/70 p-3.5 shadow-[0_24px_60px_-18px_rgba(76,20,35,0.28)] backdrop-blur-2xl"
+      className="pointer-events-auto w-[min(94vw,880px)] rounded-[26px] border border-rose-900/15 bg-white/70 p-3.5 shadow-[0_24px_60px_-18px_rgba(76,20,35,0.28)] backdrop-blur-2xl"
     >
       {/* row 1 — the link */}
       <div className="flex items-center gap-2">
@@ -129,8 +143,9 @@ export default function Controls({
         </button>
       </div>
 
-      {/* row 2 — palettes & actions */}
+      {/* row 2 — palettes, weather & actions */}
       <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-2">
+        {/* Seasons */}
         <div className="flex items-center gap-1 rounded-full border border-stone-200/80 bg-white/70 p-1">
           {SEASON_UI.map((s, i) => (
             <button
@@ -150,6 +165,30 @@ export default function Controls({
           ))}
         </div>
 
+        {/* Weather Selector (Day / Night / Rain) */}
+        <div className="flex items-center gap-1 rounded-full border border-stone-200/80 bg-white/70 p-1">
+          {WEATHER_UI.map((w) => {
+            const Icon = w.icon;
+            const active = weather === w.id;
+            return (
+              <button
+                key={w.id}
+                onClick={() => onWeather(w.id)}
+                aria-label={`${w.label} mode`}
+                className={cn(
+                  "flex h-8 items-center gap-1 rounded-full px-2.5 text-xs font-medium text-stone-600 transition-all duration-150 hover:bg-stone-100",
+                  active && "bg-stone-800 text-stone-100 shadow-sm hover:bg-stone-800",
+                )}
+                title={`${w.label} mode`}
+              >
+                <Icon className={cn("h-3.5 w-3.5", active ? "text-amber-300" : "")} />
+                <span className="hidden sm:inline">{w.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Custom Colors */}
         <div className="flex items-center gap-2 rounded-full border border-stone-200/80 bg-white/70 px-3 py-1.5">
           <label className="flex cursor-pointer items-center gap-1.5 text-[11px] font-medium text-stone-600">
             <input
@@ -184,6 +223,7 @@ export default function Controls({
           )}
         </div>
 
+        {/* Share & Download */}
         <div className="ml-auto flex items-center gap-2">
           <button onClick={onCopy} className={cn(iconBtn, "w-auto gap-2 px-3.5")} title="Copy shareable link">
             {copied ? (
