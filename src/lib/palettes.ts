@@ -26,10 +26,11 @@ export interface Palette {
   rock: string;
   foliageDensity: number;
   decorDensity: number;
-  /** flat QR mode tints — dark ink / light paper, season-tinted but
-   *  always with enough luminance contrast to stay scannable */
+  /** flat QR mode tints — dark ink / light paper */
   qrDark: string;
   qrLight: string;
+  finderDark: string;
+  finderLight: string;
   particle: {
     kind: "petal" | "firefly" | "leaf" | "snow";
     colors: string[];
@@ -41,33 +42,42 @@ export const SEASONS: Palette[] = [
   {
     id: "spring",
     baseId: "spring",
-    label: "Spring",
-    sky: ["#bfe6ff", "#ffeef4"],
-    glow: "rgba(255, 183, 213, 0.5)",
-    fog: "#dcedf6",
-    hemiSky: "#d9ecff",
-    hemiGround: "#b9a68f",
-    sun: "#fff2d9",
-    grass: ["#94cf8e", "#a6d99b", "#85c47e"],
-    dark: ["#3c6b46", "#2f5839", "#467550"],
-    soil: "#6f4f38",
-    trunk: ["#7d5537", "#8f6543"],
-    foliage: ["#ffc2d6", "#ff9ec0", "#f783ac", "#ffd9e4"],
-    accent: ["#fff6a8", "#ffffff", "#ffd166"],
-    rock: "#a8b2ab",
-    foliageDensity: 1,
-    decorDensity: 1.25,
-    qrDark: "#33202c",
-    qrLight: "#fff6f9",
-    particle: { kind: "petal", colors: ["#ffc2d6", "#ffb3ca", "#ffd9e4"], count: 70 },
+    label: "Sakura",
+    sky: ["#f9f3ea", "#f5ebec"],
+    glow: "rgba(255, 183, 200, 0.4)",
+    fog: "#f5ece6",
+    hemiSky: "#fff0f3",
+    hemiGround: "#e8ded2",
+    sun: "#fff8f2",
+    // Stone patio shades for 3D ground
+    grass: ["#89c053", "#9bd45c", "#73ad43", "#e899b8"],
+    dark: ["#c84e62", "#b83d51", "#d85d71"],
+    soil: "#442b1f",
+    trunk: ["#5c4033", "#43281c", "#6b493b"],
+    // Blossom pinks
+    foliage: ["#ffb3c6", "#ff9ebb", "#ffc5d3", "#fa8fa8", "#ffdce5", "#ffa0b8"],
+    accent: ["#ff9ebb", "#fa8fa8", "#ffdce5"],
+    rock: "#b5b0a3",
+    foliageDensity: 1.0,
+    decorDensity: 1.0,
+    // QR Code Output: Coral-Rose Center, Garden-Green Outer, Warm Stone Background
+    qrDark: "#d64f64",
+    qrLight: "#f4efe6",
+    finderDark: "#529134",
+    finderLight: "#eae4d8",
+    particle: {
+      kind: "petal",
+      colors: ["#ffb3c6", "#ff9ebb", "#ffc5d3", "#fa8fa8", "#ffdce5"],
+      count: 48,
+    },
   },
   {
     id: "summer",
     baseId: "summer",
     label: "Summer",
-    sky: ["#7cc4ff", "#e6f8ff"],
-    glow: "rgba(255, 240, 173, 0.55)",
-    fog: "#cfeaf9",
+    sky: ["#eef8ff", "#e0f2fe"],
+    glow: "rgba(255, 240, 173, 0.4)",
+    fog: "#e2f0f9",
     hemiSky: "#d6efff",
     hemiGround: "#a3977c",
     sun: "#fff6de",
@@ -80,16 +90,18 @@ export const SEASONS: Palette[] = [
     rock: "#9aa69c",
     foliageDensity: 1,
     decorDensity: 1,
-    qrDark: "#14261c",
-    qrLight: "#f3fbf1",
-    particle: { kind: "firefly", colors: ["#fff7ae", "#ffe66d", "#ffeda0"], count: 42 },
+    qrDark: "#235c34",
+    qrLight: "#f0f8ef",
+    finderDark: "#397d4c",
+    finderLight: "#e3f0e1",
+    particle: { kind: "firefly", colors: ["#fff7ae", "#ffe66d", "#ffeda0"], count: 36 },
   },
   {
     id: "autumn",
     baseId: "autumn",
     label: "Autumn",
-    sky: ["#ffd9a3", "#ffeadd"],
-    glow: "rgba(255, 173, 92, 0.5)",
+    sky: ["#fff4e6", "#fcefe3"],
+    glow: "rgba(255, 173, 92, 0.35)",
     fog: "#f6e2cd",
     hemiSky: "#ffe8c9",
     hemiGround: "#8f7a5c",
@@ -103,16 +115,18 @@ export const SEASONS: Palette[] = [
     rock: "#99928a",
     foliageDensity: 0.9,
     decorDensity: 0.9,
-    qrDark: "#301c0e",
-    qrLight: "#fdf3e2",
-    particle: { kind: "leaf", colors: ["#f97a2b", "#ef523e", "#f6a62c"], count: 62 },
+    qrDark: "#9c3714",
+    qrLight: "#fcf4e8",
+    finderDark: "#785f20",
+    finderLight: "#f2e7d3",
+    particle: { kind: "leaf", colors: ["#f97a2b", "#ef523e", "#f6a62c"], count: 48 },
   },
   {
     id: "winter",
     baseId: "winter",
     label: "Winter",
-    sky: ["#a9c3e6", "#eef4fb"],
-    glow: "rgba(214, 231, 255, 0.6)",
+    sky: ["#f1f5fa", "#e8edf5"],
+    glow: "rgba(214, 231, 255, 0.4)",
     fog: "#dde8f2",
     hemiSky: "#e8f0fb",
     hemiGround: "#8b95a8",
@@ -126,13 +140,14 @@ export const SEASONS: Palette[] = [
     rock: "#9aa7ba",
     foliageDensity: 0.3,
     decorDensity: 0.45,
-    qrDark: "#1d2536",
-    qrLight: "#f5f9ff",
-    particle: { kind: "snow", colors: ["#ffffff", "#f2f7ff"], count: 95 },
+    qrDark: "#26364f",
+    qrLight: "#f4f8fc",
+    finderDark: "#3b5578",
+    finderLight: "#e2ecf5",
+    particle: { kind: "snow", colors: ["#ffffff", "#f2f7ff"], count: 70 },
   },
 ];
 
-/** Build a small family of shades around one hex colour. */
 export function makeShades(hex: string, tweaks: Array<[number, number]>): string[] {
   const c = new Color(hex);
   const hsl = { h: 0, s: 0, l: 0 };
@@ -147,10 +162,6 @@ export function makeShades(hex: string, tweaks: Array<[number, number]>): string
   });
 }
 
-/**
- * Resolve the effective palette: a season plus optional user-picked
- * foliage / ground colours. Custom colours flip the palette to "Custom".
- */
 export function resolvePalette(
   season: number,
   customLeaf: string | null,
@@ -160,36 +171,24 @@ export function resolvePalette(
   if (!customLeaf && !customGround) return base;
   const p: Palette = { ...base, id: "custom", label: "Custom" };
 
-  // keep the QR scannable: preserve hue/sat of the user's colours but pin
-  // the lightness to a high-contrast ink / paper pair
-  const ink = new Color(customLeaf ?? base.qrDark);
-  const ihsl = { h: 0, s: 0, l: 0 };
-  ink.getHSL(ihsl);
-  p.qrDark = `#${new Color().setHSL(ihsl.h, Math.min(0.55, ihsl.s * 0.8 + 0.12), 0.145).getHexString()}`;
-  const paper = new Color(customGround ?? base.qrLight);
-  const phsl = { h: 0, s: 0, l: 0 };
-  paper.getHSL(phsl);
-  p.qrLight = `#${new Color().setHSL(phsl.h, Math.min(0.35, phsl.s * 0.55), 0.945).getHexString()}`;
-
   if (customLeaf) {
+    p.qrDark = customLeaf;
     p.foliage = makeShades(customLeaf, [
-      [-0.12, 0.02],
+      [-0.08, 0.02],
       [0, 0],
-      [0.1, -0.04],
-      [0.2, -0.08],
+      [0.08, -0.04],
+      [0.16, -0.06],
     ]);
   }
+
   if (customGround) {
+    p.qrLight = customGround;
     p.grass = makeShades(customGround, [
       [0, 0.03],
       [0.08, 0],
       [-0.07, 0.05],
     ]);
-    p.dark = makeShades(customGround, [
-      [-0.34, 0.06],
-      [-0.4, 0.08],
-      [-0.28, 0.04],
-    ]);
   }
+
   return p;
 }
