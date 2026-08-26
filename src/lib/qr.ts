@@ -14,7 +14,8 @@ export interface QRGrid {
 }
 
 export function buildGrid(text: string): QRGrid {
-  const qr = QRCode.create(text, { errorCorrectionLevel: "M" });
+  // Using 'H' (High - ~30% recovery) so artistic canopy/decorations remain robustly scannable
+  const qr = QRCode.create(text, { errorCorrectionLevel: "H" });
   const size = qr.modules.size;
   const total = size + QUIET * 2;
   const data = new Uint8Array(total * total);
@@ -38,29 +39,30 @@ export interface ForestZone {
 
 export function computeZone(size: number): ForestZone {
   const center = (size - 1) / 2;
-  // keep clear of the finder patterns + separators, cap for aesthetics
-  let w = Math.min(Math.floor(size / 2) - 8, 6);
+  // Expands the canopy zone to cover more of the central QR matrix
+  // while staying safely inside the 3 finder patterns (7x7 corner targets)
+  let w = Math.min(Math.floor(size / 2) - 6, 8);
   if (w < 1) w = Math.max(1, Math.floor(size / 2) - 1);
   const n = Math.max(3, 2 * w + 1);
   const start = center - (n - 1) / 2 + QUIET;
   return { x0: start, z0: start, n };
 }
 
-/** Download a clean, high-resolution, guaranteed-scannable PNG of the code. */
+/** Download a clean, high-resolution PNG with custom sakura styling defaults. */
 export async function downloadPng(
   text: string,
-  dark = "#0d120c",
-  light = "#ffffff",
+  dark = "#d35252", // Sakura QR dark tone matching the rendered palette
+  light = "#f5f3e9", // Warm stone-white background matching the floor tiles
 ): Promise<void> {
   const url = await QRCode.toDataURL(text, {
-    errorCorrectionLevel: "M",
+    errorCorrectionLevel: "H",
     margin: 2,
     width: 1200,
     color: { dark, light },
   });
   const a = document.createElement("a");
   a.href = url;
-  a.download = "sprout-qr-tree.png";
+  a.download = "sakura-qr-tree.png";
   document.body.appendChild(a);
   a.click();
   a.remove();
