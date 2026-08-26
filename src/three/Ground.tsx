@@ -3,36 +3,7 @@ import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import type { QRGrid } from "../lib/qr";
 import type { Palette } from "../lib/palettes";
-import { mulberry32, pickIndex } from "../lib/random";
-import { morph, clamp01, easeOutBack, smooth01 } from "./shared";
-
-interface Tile {
-  x: number;
-  z: number;
-  h: number;
-  delay: number;
-  base: THREE.Color;
-  flat: THREE.Color;
-}
-
-const tmp = new THREE.Object3D();
-const col = new THREE.Color();
-
-// Stone patio tints for the 3D ground
-const STONE_PATIO_COLORS = [
-  "#ede7de",
-  "#e3ddd2",
-  "#f4eee4",
-  "#dad3c6",
-  "#ede6db",
-];
-
-// Fallback outer grass module colors
-const GARDEN_GREEN_MODULES = [
-  "#529134",
-  "#46822b",
-  "#5a9d3a",
-];
+import { morph, smooth01 } from "./shared";
 
 export default function Ground({
   grid,
@@ -43,141 +14,88 @@ export default function Ground({
   palette: Palette;
   seed: number;
 }) {
+  const meshRef = useRef<THREE.InstancedMesh>(null);
   const total = grid.total;
-  const count = total * total;
-  const half = (total - 1) / 2;
+  const S = total * 0.5;
 
-  // Use standard BoxGeometry for reliable bundler compatibility
-  const geo = useMemo(() => new THREE.BoxGeometry(1, 1, 1), []);
-  const mat = useMemo(
-    () => new THREE.MeshStandardMaterial({ roughness: 0.88, metalness: 0 }),
-    [],
+  // Seamless single solid slab base plate without wireframe or grid edges
+  const baseGeo = useMemo(() => new THREE.BoxGeometry(total + 2, 0.4, total + 2), [total]);
+  const baseMat = useMemo(
+    () =>
+      new THREE.MeshStandardMaterial({
+        color: palette.qrLight,
+        roughness: 0.9,
+        metalness: 0,
+      }),
+    [palette.qrLight],
   );
 
-  useEffect(
-    () => () => {
-      geo.dispose();
-      mat.dispose();
-    },
-    [geo, mat],
+  // Full-size tile box with 0 gap/seam margin (scale: 1.0) so no line borders show
+  const tileGeo = useMemo(() => new THREE.BoxGeometry(1.0, 0.2, 1.0), []);
+  const tileMat = useMemo(
+    () =>
+      new THREE.MeshStandardMaterial({
+        color: palette.grass[0] ?? palette.qrLight,
+        roughness: 0.85,
+        metalness: 0,
+      }),
+    [palette.grass, palette.qrLight],
   );
 
-  const mesh = useRef<THREE.InstancedMesh>(null);
-  const st = useRef({ intro: 0, lastP: -1, dirty: true });
-
-  const tiles = useMemo<Tile[]>(() => {
-    const rng = mulberry32(seed ^ 0x9e3779b9);
-    const arr: Tile[] = [];
-
-    const stonePool = STONE_PATIO_COLORS.map((c) => new THREE.Color(c));
-    const grassPool = (palette.grass?.length ? palette.grass : GARDEN_GREEN_MODULES).map(
-      (c) => new THREE.Color(c),
-    );
-
-    // Flattened QR colors
-    const flatBlossomDark = new THREE.Color(palette.qrDark || "#d64f64");
-    const flatGardenDark = new THREE.Color(palette.finderDark || "#529134");
-    const flatLight = new THREE.Color(palette.qrLight || "#f4efe6");
-
-    // Center zone radius threshold (tree footprint)
-    const centerRadius = Math.max(3, Math.floor(grid.size * 0.32));
-
-    for (let r = 0; r < total; r++) {
-      for (let c = 0; c < total; c++) {
-        const x = c - half;
-        const z = r - half;
-        const distFromCenter = Math.hypot(x, z);
-        const isDark = grid.data[r * total + c] === 1;
-
-        // 3D Tree Mode Tile Appearance:
-        // Central area is stone pavement; outer ring blends into lush grass tiles
-        let base: THREE.Color;
-        if (distFromCenter < half - 1.8) {
-          base = stonePool[pickIndex(rng, stonePool.length)].clone();
-          const checker = (r + c) % 2 === 0 ? 0.015 : -0.015;
-          base.offsetHSL(0, 0, checker + (rng() - 0.5) * 0.02);
-        } else {
-          base = grassPool[pickIndex(rng, grassPool.length)].clone();
-          base.offsetHSL(0, 0, (rng() - 0.5) * 0.04);
-        }
-
-        // Flattened QR Mode Color Assignment:
-        // Central modules turn blossom rose; outer data modules turn grass green
-        let flatColor: THREE.Color;
-        if (isDark) {
-          flatColor = distFromCenter <= centerRadius ? flatBlossomDark : flatGardenDark;
-        } else {
-          flatColor = flatLight;
-        }
-
-        arr.push({
-          x,
-          z,
-          h: 0.28 + (distFromCenter > half - 2 ? rng() * 0.12 : 0),
-          delay: (distFromCenter / Math.max(1, half * 1.42)) * 0.55,
-          base,
-          flat: flatColor,
-        });
-      }
-    }
-    return arr;
-  }, [grid, palette, seed, total, half]);
+  const dummy = useMemo(() => new THREE.Object3D(), []);
 
   useEffect(() => {
-    st.current.dirty = true;
-  }, [tiles]);
+    return () => {
+      baseGeo.dispose();
+      baseMat.dispose();
+      tileGeo.dispose();
+      tileMat.dispose();
+    };
+  }, [baseGeo, baseMat, tileGeo, tileMat]);
 
-  useFrame((_, rawDt) => {
-    const s = st.current;
-    const dt = Math.min(rawDt, 0.05);
-    s.intro = Math.min(1, s.intro + dt * 0.85);
-    const p = morph?.p ?? 0;
-    if (!s.dirty && Math.abs(p - s.lastP) < 0.0004 && s.intro >= 1) return;
-    s.dirty = false;
-    s.lastP = p;
-    const m = mesh.current;
-    if (!m) return;
-    const q = smooth01(p);
+  // Set tile instances without spacing seams
+  useEffect(() => {
+    const mesh = meshRef.current;
+    if (!mesh) return;
 
-    for (let i = 0; i < tiles.length; i++) {
-      const t = tiles[i];
-      const grow = easeOutBack((s.intro * 1.55 - t.delay) / 0.55);
-      const organic = t.h * grow;
-      const sy = Math.max(0.02, organic * (1 - q) + 0.14 * q);
-      const sxz = 0.96 * clamp01(grow * 1.4 + q * 2);
-
-      tmp.position.set(t.x, sy / 2, t.z);
-      tmp.scale.set(sxz, sy, sxz);
-      tmp.rotation.set(0, 0, 0);
-      tmp.updateMatrix();
-      m.setMatrixAt(i, tmp.matrix);
-
-      col.copy(t.base).lerp(t.flat, q);
-      m.setColorAt(i, col);
+    let idx = 0;
+    for (let x = 0; x < total; x++) {
+      for (let z = 0; z < total; z++) {
+        dummy.position.set(x - S + 0.5, -0.1, z - S + 0.5);
+        dummy.scale.set(1.002, 1, 1.002); // slight micro-overlap to eliminate subpixel gap lines
+        dummy.updateMatrix();
+        mesh.setMatrixAt(idx++, dummy.matrix);
+      }
     }
-    m.instanceMatrix.needsUpdate = true;
-    if (m.instanceColor) m.instanceColor.needsUpdate = true;
+    mesh.instanceMatrix.needsUpdate = true;
+  }, [total, S, dummy]);
+
+  useFrame(() => {
+    const p = morph?.p ?? 0;
+    const q = smooth01(p);
+    // Smoothly blend floor material color when morphing to flat QR
+    tileMat.color.lerp(
+      new THREE.Color(q > 0.5 ? palette.qrLight : palette.grass[0] ?? palette.qrLight),
+      0.15,
+    );
   });
 
   return (
-    <group>
-      <instancedMesh
-        key={count}
-        ref={mesh}
-        args={[geo, mat, count]}
-        frustumCulled={false}
-        castShadow
+    <group position={[0, -0.2, 0]}>
+      {/* Base Foundation Slab */}
+      <mesh
+        geometry={baseGeo}
+        material={baseMat}
+        position={[0, -0.3, 0]}
         receiveShadow
       />
-      {/* Diorama base border */}
-      <mesh
-        geometry={geo}
-        position={[0, -0.42, 0]}
-        scale={[total + 2.2, 0.82, total + 2.2]}
+
+      {/* Surface Tile Layer (Without Seams/Borders) */}
+      <instancedMesh
+        ref={meshRef}
+        args={[tileGeo, tileMat, total * total]}
         receiveShadow
-      >
-        <meshStandardMaterial color={palette.soil || "#cfc8bc"} roughness={0.95} />
-      </mesh>
+      />
     </group>
   );
 }
