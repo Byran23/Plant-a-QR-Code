@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { morph, smooth01, clamp01, easeOutBack } from "./shared";
 
-// High-clarity 2-sided canvas texture renderer with solid Roboto fill
+// High-resolution canvas texture renderer with bold, filled Roboto typography
 function createBannerTextures(text: string) {
   const canvasFront = document.createElement("canvas");
   const canvasBack = document.createElement("canvas");
@@ -20,27 +20,27 @@ function createBannerTextures(text: string) {
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, 2048, 512);
 
-    // Decorative edge borders
-    ctx.fillStyle = "#be123c"; // Crimson red border
-    ctx.fillRect(0, 0, 2048, 28);
-    ctx.fillRect(0, 484, 2048, 28);
+    // Frame borders
+    ctx.fillStyle = "#e11d48"; // Crimson border
+    ctx.fillRect(0, 0, 2048, 24);
+    ctx.fillRect(0, 488, 2048, 24);
 
-    ctx.fillStyle = "#f59e0b"; // Golden amber trim
-    ctx.fillRect(0, 28, 2048, 14);
-    ctx.fillRect(0, 470, 2048, 14);
+    ctx.fillStyle = "#f59e0b"; // Golden accent stripe
+    ctx.fillRect(0, 24, 2048, 12);
+    ctx.fillRect(0, 476, 2048, 12);
 
     if (isBack) {
       ctx.translate(2048, 0);
       ctx.scale(-1, 1);
     }
 
-    // Bold Roboto typography
-    ctx.font = "900 132px 'Roboto', sans-serif";
+    // Large, bold, filled Roboto typography
+    ctx.font = "bold 158px 'Roboto', sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
 
-    // Solid filled color (no stroke)
-    ctx.fillStyle = "#e11d48";
+    // Solid filled color without outline/stroke
+    ctx.fillStyle = "#be123c";
     ctx.fillText(text, 1024, 256);
   };
 
@@ -79,7 +79,9 @@ export default function Helicopter({
   const boxGeo = useMemo(() => new THREE.BoxGeometry(1, 1, 1), []);
   const sphereGeo = useMemo(() => new THREE.SphereGeometry(1, 16, 16), []);
   const cylinderGeo = useMemo(() => new THREE.CylinderGeometry(1, 1, 1, 16), []);
-  const bannerGeo = useMemo(() => new THREE.PlaneGeometry(10.5, 2.6, 32, 6), []);
+  
+  // Expanded banner dimensions to give the larger font ample margin
+  const bannerGeo = useMemo(() => new THREE.PlaneGeometry(11.2, 2.8, 32, 6), []);
 
   const { texFront, texBack } = useMemo(
     () => createBannerTextures("Bryan R. Cañaveral"),
@@ -231,7 +233,7 @@ export default function Helicopter({
 
     const posAttr = bannerGeo.attributes.position;
     for (let i = 0; i < posAttr.count; i++) {
-      const u = (posAttr.getX(i) + 5.25) / 10.5;
+      const u = (posAttr.getX(i) + 5.6) / 11.2;
       const wave = Math.sin(t * 6 - u * 4.5) * (0.02 + u * 0.22);
       posAttr.setZ(i, wave);
     }
@@ -324,7 +326,7 @@ export default function Helicopter({
         <mesh geometry={cylinderGeo} material={metalMat} position={[0.32, 0.25, -0.4]} scale={[0.035, 0.45, 0.035]} />
       </group>
 
-      {/* Trailing Banner */}
+      {/* Tow Cables & Trailing Banner */}
       <group position={[0, -0.2, -2.25]}>
         <mesh
           geometry={cylinderGeo}
@@ -341,7 +343,7 @@ export default function Helicopter({
           scale={[0.02, 2.0, 0.02]}
         />
 
-        <group position={[0, -0.6, -7.0]} rotation={[0, -Math.PI / 2, 0]}>
+        <group position={[0, -0.6, -7.2]} rotation={[0, -Math.PI / 2, 0]}>
           <mesh ref={frontBannerMeshRef} geometry={bannerGeo} material={bannerFrontMat} />
           <mesh ref={backBannerMeshRef} geometry={bannerGeo} material={bannerBackMat} />
         </group>
