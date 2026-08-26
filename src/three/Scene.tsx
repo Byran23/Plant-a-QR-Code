@@ -62,19 +62,34 @@ function Rig({
 
     if (!qr && !r.dragging) r.azT += dt * 0.055;
 
+    // Viewport aspect & vertical FOV bounds
+    const aspect = Math.max(0.1, size.width / Math.max(1, size.height));
+    const isPortrait = aspect < 1;
     const tanF = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-    const fitA = Math.min(1, size.width / Math.max(1, size.height));
-    const fitTree = ((total * 0.62) / (tanF * fitA)) * 1.68;
-    const fitQR = (total * 0.64) / tanF;
+
+    // Responsive framing distances ensuring full visibility on narrow portrait mobile screens
+    const fitTree = isPortrait
+      ? ((total * 0.68) / (tanF * aspect)) * 1.55
+      : ((total * 0.62) / tanF) * 1.68;
+
+    // QR mode bounds: padding included so full boundary finder patterns are comfortably readable
+    const fitQR = isPortrait
+      ? ((total * 0.60) / (tanF * aspect)) * 1.18
+      : (total * 0.60) / tanF;
 
     const distGoal = (qr ? fitQR : fitTree) * r.dT;
     const elGoal = qr ? 1.545 : r.elT;
     const azGoal = qr ? Math.round(r.az / HALF_PI) * HALF_PI : r.azT;
 
+    // Center target Y offset (portrait screens need a slight upward shift to clear bottom UI bars)
+    const targetYGoal = qr
+      ? isPortrait ? 1.2 : 0
+      : Math.min(3.2, total * 0.09);
+
     r.az = THREE.MathUtils.damp(r.az, azGoal, 3.2, dt);
     r.el = THREE.MathUtils.damp(r.el, elGoal, 3.2, dt);
     r.dist = THREE.MathUtils.damp(r.dist, distGoal, 3.2, dt);
-    r.ty = THREE.MathUtils.damp(r.ty, qr ? 0 : Math.min(3.2, total * 0.09), 3.2, dt);
+    r.ty = THREE.MathUtils.damp(r.ty, targetYGoal, 3.2, dt);
 
     const ce = Math.cos(r.el);
     camera.position.set(
