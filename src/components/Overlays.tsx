@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { Check, Flower2, MousePointerClick, ScanLine, ShieldCheck, Sparkles } from "lucide-react";
+import { Check, Flower2, MousePointerClick, ScanLine, ShieldCheck } from "lucide-react";
 
 /* ---------------------------------------------------------------- */
 
@@ -91,7 +91,6 @@ export function Hint({ qr }: { qr: boolean }) {
 /* ---------------------------------------------------------------- */
 
 export function ScannerOverlay({ show }: { show: boolean }) {
-  const corner = "absolute h-9 w-9 border-rose-900";
   return (
     <AnimatePresence>
       {show && (
@@ -103,23 +102,11 @@ export function ScannerOverlay({ show }: { show: boolean }) {
           className="pointer-events-none fixed inset-0 z-30 flex flex-col items-center justify-center"
         >
           <motion.div
-            initial={{ scale: 0.86 }}
-            animate={{ scale: 1 }}
-            exit={{ scale: 0.9 }}
-            transition={{ type: "spring", stiffness: 120, damping: 15 }}
-            className="relative h-[min(66vh,66vw)] w-[min(66vh,66vw)] sm:h-[min(70vh,70vw)] sm:w-[min(70vh,70vw)]"
-          >
-            <span className={`${corner} left-0 top-0 rounded-tl-2xl border-l-[3px] border-t-[3px]`} />
-            <span className={`${corner} right-0 top-0 rounded-tr-2xl border-r-[3px] border-t-[3px]`} />
-            <span className={`${corner} bottom-0 left-0 rounded-bl-2xl border-b-[3px] border-l-[3px]`} />
-            <span className={`${corner} bottom-0 right-0 rounded-br-2xl border-b-[3px] border-r-[3px]`} />
-          </motion.div>
-          <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
             transition={{ delay: 0.25 }}
-            className="mt-7 flex items-center gap-2 rounded-full border border-rose-950/20 bg-rose-950/90 px-4.5 py-2 text-rose-50 backdrop-blur shadow-lg"
+            className="mt-7 flex items-center gap-2 rounded-full border border-rose-950/20 bg-rose-950/90 px-4.5 py-2 text-rose-50 shadow-lg backdrop-blur"
           >
             <ScanLine className="h-3.5 w-3.5 text-rose-300" />
             <span className="text-xs font-medium">The petals formed the code — ready to scan</span>
@@ -143,7 +130,7 @@ export function Toast({ toast }: { toast: { id: number; msg: string } | null }) 
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -14, scale: 0.96 }}
             transition={{ type: "spring", stiffness: 240, damping: 20 }}
-            className="flex items-center gap-2 rounded-full bg-rose-950 px-4.5 py-2.5 text-rose-50 shadow-[0_18px_40px_-12px_rgba(76,20,35,0.5)] border border-rose-800/30"
+            className="flex items-center gap-2 rounded-full border border-rose-800/30 bg-rose-950 px-4.5 py-2.5 text-rose-50 shadow-[0_18px_40px_-12px_rgba(76,20,35,0.5)]"
             style={{ paddingLeft: 16, paddingRight: 18 }}
           >
             <Check className="h-4 w-4 text-rose-300" />

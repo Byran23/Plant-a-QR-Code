@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { ExternalLink, Flower2, QrCode } from "lucide-react";
 import Scene from "./three/Scene";
 import Controls from "./components/Controls";
-import { FooterBits, Header, Hint, ScannerOverlay, Toast, Watermark } from "./components/Overlays";
+import { FooterBits, Header, Hint, Toast, Watermark } from "./components/Overlays";
 import { buildGrid, downloadPng, readHash, writeHash, type ShareState } from "./lib/qr";
 import { resolvePalette, SEASONS } from "./lib/palettes";
 import { hashSeed } from "./lib/random";
@@ -173,7 +173,6 @@ export default function App() {
         }}
       />
       <div className="noise pointer-events-none fixed inset-0 z-20 opacity-30" />
-      <ScannerOverlay show={qr} />
 
       {isMinimalView ? (
         <div className="pointer-events-none fixed inset-0 z-40 flex flex-col items-center justify-between p-6">
