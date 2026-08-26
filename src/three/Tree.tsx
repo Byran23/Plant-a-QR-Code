@@ -6,18 +6,6 @@ import type { ForestZone, QRGrid } from "../lib/qr";
 import { mulberry32, pickIndex } from "../lib/random";
 import { morph, clamp01, easeOutBack, smooth01 } from "./shared";
 
-interface OrientedSegment {
-  x: number;
-  y: number;
-  z: number;
-  sx: number;
-  sy: number;
-  sz: number;
-  quat: THREE.Quaternion;
-  c: number;
-  u: number;
-}
-
 interface InstanceItem {
   x: number;
   y: number;
@@ -32,7 +20,7 @@ interface InstanceItem {
   u: number;
 }
 
-interface BlossomCluster {
+interface CanopyPetal {
   ox: number;
   oy: number;
   oz: number;
@@ -48,8 +36,9 @@ interface BlossomCluster {
 }
 
 interface TreeSceneData {
-  woodSegments: OrientedSegment[];
-  canopy: BlossomCluster[];
+  trunk: InstanceItem[];
+  branches: InstanceItem[];
+  canopy: CanopyPetal[];
   fallenPetals: InstanceItem[];
   grassEdges: InstanceItem[];
   pinkReeds: InstanceItem[];
@@ -57,71 +46,30 @@ interface TreeSceneData {
 
 const FLAT_TILE_TOP = 0.14;
 
-// Realistic, painterly sakura flower tones with shadows and highlights
+// Exact color palette sampled from the reference render
 const SAKURA_PALETTE = [
-  "#fba3ba", // Delicate open petal
-  "#f389a4", // Vibrant core bloom pink
-  "#fcc4d3", // Sunlit highlight petal
-  "#e87291", // Deeper canopy shadow
-  "#fee6ed", // White-pink blossom tip
-  "#f2809e", // Mid-tone flower
-  "#ffd1dc", // Light petal pink
+  "#ffadc1", // Base sakura pink
+  "#ff9eb4", // Vibrant mid petal
+  "#ffbfd0", // Light sunlit highlight
+  "#f78fa8", // Shadow depth pink
+  "#ffd7e2", // White-pink petal edge
+  "#ff95ad", // Saturated bloom core
 ];
 
-const BARK_PALETTE = [
-  "#3a2318",
-  "#4c3123",
-  "#5a3c2c",
-  "#2a180f",
-  "#664534",
-];
+const TRUNK_PALETTE = ["#543a2b", "#3d271c", "#634534", "#301d14"];
+const BRANCH_COLOR = ["#3a241a", "#4a3022"];
+const GRASS_PALETTE = ["#7eb844", "#8ec751", "#6fa338", "#9cd15e"];
+const REED_PALETTE = ["#d77ea1", "#e898b7", "#c2698e"];
 
-const MEADOW_GRASS = ["#7eb844", "#8ec751", "#6fa338", "#9cd15e"];
-const ACCENT_REEDS = ["#d77ea1", "#e898b7", "#c2698e"];
-
-const UP = new THREE.Vector3(0, 1, 0);
-
-function createSegment(
-  p1: THREE.Vector3,
-  p2: THREE.Vector3,
-  r1: number,
-  r2: number,
-  colorIdx: number,
-  u: number
-): OrientedSegment {
-  const dir = new THREE.Vector3().subVectors(p2, p1);
-  const len = dir.length();
-  const mid = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
-
-  const quat = new THREE.Quaternion();
-  if (len > 0.0001) {
-    const normDir = dir.clone().normalize();
-    quat.setFromUnitVectors(UP, normDir);
-  }
-
-  const avgRadius = (r1 + r2) * 0.5;
-
-  return {
-    x: mid.x,
-    y: mid.y,
-    z: mid.z,
-    sx: avgRadius * 2,
-    sy: len * 1.04,
-    sz: avgRadius * 2,
-    quat,
-    c: colorIdx,
-    u,
-  };
-}
-
-function generateBotanicalSakura(
+function generatePixelStylizedSakura(
   seed: number,
   grid: QRGrid,
   zone: ForestZone
 ): TreeSceneData {
   const rng = mulberry32(seed);
   const data: TreeSceneData = {
-    woodSegments: [],
+    trunk: [],
+    branches: [],
     canopy: [],
     fallenPetals: [],
     grassEdges: [],
@@ -130,191 +78,118 @@ function generateBotanicalSakura(
 
   const half = (grid.total - 1) / 2;
 
-  // Fixed structural dimensions so the wooden skeleton stays solid and elegant
-  const H = 9.8;
-  const baseTrunkRadius = 1.35;
+  // Fixed proportions matching the reference
+  const H = 7.8;
+  const baseTrunkRadius = 0.72;
 
-  // URL length directly drives flower and petal density without adding more branches
+  // URL length increases floral blossom density without resizing or adding wood limbs
   const textLength = grid.text ? grid.text.length : 16;
-  const leafDensityFactor = Math.min(2.8, Math.max(1.0, 1.0 + (textLength - 16) * 0.038));
+  const leafDensityFactor = Math.min(2.5, Math.max(1.0, 1.0 + (textLength - 16) * 0.035));
 
-  // 1. Root Buttresses
-  const rootCount = 6;
-  for (let i = 0; i < rootCount; i++) {
-    const rootAngle = (i / rootCount) * Math.PI * 2 + (rng() - 0.5) * 0.35;
-    const spread = baseTrunkRadius * (1.5 + rng() * 0.45);
-    const p1 = new THREE.Vector3(
-      Math.cos(rootAngle) * spread,
-      FLAT_TILE_TOP + 0.02,
-      Math.sin(rootAngle) * spread
-    );
-    const p2 = new THREE.Vector3(
-      Math.cos(rootAngle) * (baseTrunkRadius * 0.75),
-      H * 0.1,
-      Math.sin(rootAngle) * (baseTrunkRadius * 0.75)
-    );
-    data.woodSegments.push(
-      createSegment(p1, p2, baseTrunkRadius * 0.45, baseTrunkRadius * 0.3, 3, rng())
-    );
-  }
+  // 1. Ribbed Banded Trunk
+  const numRings = 18;
+  const totalTrunkH = H * 0.52;
+  const ringH = totalTrunkH / numRings;
 
-  // 2. Trunk Spline
-  const trunkSegments = 16;
-  const trunkSpline: { pos: THREE.Vector3; radius: number }[] = [];
-  const sCurveAngle = rng() * Math.PI * 2;
-  const sCurvePower = 0.3;
-
-  for (let i = 0; i <= trunkSegments; i++) {
-    const t = i / trunkSegments;
-    const y = t * (H * 0.74);
-    const bend = Math.sin(t * Math.PI * 1.1) * sCurvePower * baseTrunkRadius;
-    const cx = Math.cos(sCurveAngle) * bend;
-    const cz = Math.sin(sCurveAngle) * bend;
-    const r = THREE.MathUtils.lerp(baseTrunkRadius, baseTrunkRadius * 0.24, Math.pow(t, 0.78));
-
-    trunkSpline.push({
-      pos: new THREE.Vector3(cx, y + FLAT_TILE_TOP, cz),
-      radius: r,
+  for (let i = 0; i < numRings; i++) {
+    const t = i / numRings;
+    const r = THREE.MathUtils.lerp(baseTrunkRadius, baseTrunkRadius * 0.62, Math.pow(t, 0.75));
+    data.trunk.push({
+      x: 0,
+      y: i * ringH + ringH * 0.5,
+      z: 0,
+      sx: r * 2,
+      sy: ringH * 0.94,
+      sz: r * 2,
+      c: i % 2 === 0 ? 0 : 1,
+      u: rng(),
     });
   }
 
-  for (let i = 0; i < trunkSpline.length - 1; i++) {
-    const p1 = trunkSpline[i].pos;
-    const p2 = trunkSpline[i + 1].pos;
-    const r1 = trunkSpline[i].radius;
-    const r2 = trunkSpline[i + 1].radius;
-    data.woodSegments.push(
-      createSegment(p1, p2, r1, r2, i % 2 === 0 ? 0 : 1, rng())
-    );
-  }
+  // 2. Dark Geometric Branches
+  const boughCount = 10;
+  const boughStartY = H * 0.42;
+  const branchAttachmentPoints: THREE.Vector3[] = [];
 
-  // 3. Stable Branch Network with Candidate Bloom Sites
-  const GOLDEN_ANGLE = 2.399963;
-  const primaryBoughCount = 11;
-  const boughStartIdx = Math.floor(trunkSegments * 0.32);
-  const potentialFlowerSites: { pos: THREE.Vector3; weight: number }[] = [];
-
-  for (let i = 0; i < primaryBoughCount; i++) {
-    const tProgress = i / primaryBoughCount;
-    const attachIdx = Math.min(
-      trunkSegments - 1,
-      boughStartIdx + Math.floor(tProgress * (trunkSegments - boughStartIdx))
-    );
-    const attachPoint = trunkSpline[attachIdx];
-
-    const angle = i * GOLDEN_ANGLE + (rng() - 0.5) * 0.3;
-    const isTopCrownLeader = tProgress > 0.62;
-    const boughLength = (isTopCrownLeader ? 2.8 : 4.4) + rng() * 0.6;
-    const elevation = isTopCrownLeader ? 0.68 + rng() * 0.28 : 0.3 + rng() * 0.25;
-    const steps = Math.ceil(boughLength * 3.2);
+  for (let i = 0; i < boughCount; i++) {
+    const angle = (i / boughCount) * Math.PI * 2 + (rng() - 0.5) * 0.35;
+    const isTopSpur = i % 3 === 0;
+    const length = isTopSpur ? 2.2 + rng() * 0.8 : 3.4 + rng() * 1.0;
+    const slope = isTopSpur ? 0.65 + rng() * 0.25 : 0.28 + rng() * 0.22;
+    const steps = Math.ceil(length * 2.8);
 
     const dirX = Math.cos(angle);
     const dirZ = Math.sin(angle);
-    const inv = 1 / (Math.hypot(dirX, elevation, dirZ) || 1);
+    const inv = 1 / (Math.hypot(dirX, slope, dirZ) || 1);
 
-    let currStart = attachPoint.pos.clone();
-    let currentRadius = attachPoint.radius * 0.56;
+    let px = 0;
+    let py = boughStartY + rng() * 0.9;
+    let pz = 0;
 
-    // Approximately 20% of branches remain naturally bare
-    const isBareBranch = rng() < 0.2;
+    const isBare = rng() < 0.2; // Keep some branches naturally bare
 
     for (let s = 0; s < steps; s++) {
       const stepT = s / steps;
-      const stepLen = 0.38;
-      const gravitySag = Math.sin(stepT * Math.PI) * -0.05;
-      const currElevation = elevation + gravitySag;
+      px += dirX * inv * 0.36;
+      py += slope * inv * 0.36;
+      pz += dirZ * inv * 0.36;
+      const thickness = Math.max(0.12, 0.42 * (1 - stepT * 0.65));
 
-      const nextEnd = new THREE.Vector3(
-        currStart.x + (dirX + (rng() - 0.5) * 0.1) * inv * stepLen,
-        currStart.y + (currElevation + (rng() - 0.5) * 0.08) * inv * stepLen,
-        currStart.z + (dirZ + (rng() - 0.5) * 0.1) * inv * stepLen
-      );
-
-      const nextRadius = Math.max(0.08, currentRadius * (1 - stepT * 0.65));
-      data.woodSegments.push(
-        createSegment(currStart, nextEnd, currentRadius, nextRadius, pickIndex(rng, BARK_PALETTE.length), rng())
-      );
-
-      if (!isBareBranch && s >= Math.floor(steps * 0.35)) {
-        potentialFlowerSites.push({
-          pos: nextEnd.clone(),
-          weight: stepT,
-        });
-      }
-
-      // Secondary and tertiary twigs
-      if (s > 2 && s % 2 === 0 && rng() < 0.78) {
-        const twigAngle = angle + (rng() > 0.5 ? 0.68 : -0.68) + (rng() - 0.5) * 0.2;
-        const twigLen = 0.5 + rng() * 0.4;
-        const twigEnd = new THREE.Vector3(
-          nextEnd.x + Math.cos(twigAngle) * twigLen,
-          nextEnd.y + 0.32 + rng() * 0.28,
-          nextEnd.z + Math.sin(twigAngle) * twigLen
-        );
-        data.woodSegments.push(
-          createSegment(nextEnd, twigEnd, nextRadius * 0.7, 0.06, 2, rng())
-        );
-
-        if (!isBareBranch && rng() < 0.85) {
-          potentialFlowerSites.push({
-            pos: twigEnd.clone(),
-            weight: 1.0,
-          });
-        }
-      }
-
-      currStart = nextEnd;
-      currentRadius = nextRadius;
-    }
-
-    if (!isBareBranch) {
-      potentialFlowerSites.push({
-        pos: currStart.clone(),
-        weight: 1.0,
+      data.branches.push({
+        x: px,
+        y: py,
+        z: pz,
+        sx: thickness,
+        sy: thickness * 1.25,
+        sz: thickness,
+        rx: (rng() - 0.5) * 0.12,
+        ry: angle,
+        rz: (rng() - 0.5) * 0.12,
+        c: 0,
+        u: rng(),
       });
+
+      if (!isBare && s >= Math.floor(steps * 0.35)) {
+        branchAttachmentPoints.push(new THREE.Vector3(px, py, pz));
+      }
     }
   }
 
-  // 4. Natural Blossom & Petal Cluster Generation
-  const pushBlossomCluster = (
+  // 3. Volumetric Petal Cluster Canopy (Layered & Airy)
+  const crownBaseY = H * 0.62;
+  const crownRadius = Math.max(1.8, zone.n * 0.72);
+
+  const pushBlossomCard = (
     mx: number,
     mz: number,
     pale: boolean,
     anchorPos?: THREE.Vector3,
-    customSize?: number
+    customScale?: number
   ) => {
     let ox = 0;
     let oy = 0;
     let oz = 0;
 
     if (anchorPos) {
-      ox = anchorPos.x + (rng() - 0.5) * 0.25;
-      oy = anchorPos.y + (rng() - 0.5) * 0.22;
-      oz = anchorPos.z + (rng() - 0.5) * 0.25;
+      ox = anchorPos.x + (rng() - 0.5) * 0.35;
+      oy = anchorPos.y + (rng() - 0.5) * 0.3;
+      oz = anchorPos.z + (rng() - 0.5) * 0.35;
     } else {
-      let nearestDist = 999;
-      let target = potentialFlowerSites[0]?.pos || new THREE.Vector3(0, H * 0.7, 0);
+      const dist = Math.min(1, Math.hypot(mx, mz) / crownRadius);
+      const domeH = Math.pow(Math.max(0, 1 - dist), 0.6) * 3.4;
 
-      for (const site of potentialFlowerSites) {
-        const d = Math.hypot(mx - site.pos.x, mz - site.pos.z);
-        if (d < nearestDist) {
-          nearestDist = d;
-          target = site.pos;
-        }
-      }
-
-      ox = mx * 0.95 + (rng() - 0.5) * 0.35;
-      oy = target.y + (rng() - 0.5) * 0.45;
-      oz = mz * 0.95 + (rng() - 0.5) * 0.35;
+      ox = mx * 0.94 + (rng() - 0.5) * 0.45;
+      oy = crownBaseY + domeH + (rng() - 0.5) * 0.7;
+      oz = mz * 0.94 + (rng() - 0.5) * 0.45;
     }
 
-    const clusterScale = customSize || 0.48 + rng() * 0.2;
+    const scale = customScale || 0.62 + rng() * 0.3;
 
     data.canopy.push({
       ox,
       oy,
       oz,
-      os: clusterScale,
+      os: scale,
       fx: mx,
       fz: mz,
       ci: pickIndex(rng, SAKURA_PALETTE.length),
@@ -326,48 +201,45 @@ function generateBotanicalSakura(
     });
   };
 
-  // 4a. QR Code Data Modules
+  // 3a. Map Data Modules into QR Grid
   let qrModuleCount = 0;
   for (let r = 0; r < zone.n; r++) {
     for (let c = 0; c < zone.n; c++) {
       const gr = zone.z0 + r;
       const gc = zone.x0 + c;
       if (grid?.data && grid.data[gr * grid.total + gc] === 1) {
-        pushBlossomCluster(gc - half, gr - half, false);
+        pushBlossomCard(gc - half, gr - half, false);
         qrModuleCount++;
       }
     }
   }
 
-  // 4b. Fill Candidate Branch Nodes (More blossoms as URL length increases)
-  const baseFillRate = 0.65 * leafDensityFactor;
-  for (const site of potentialFlowerSites) {
-    if (rng() < baseFillRate * site.weight) {
-      pushBlossomCluster(site.pos.x, site.pos.z, true, site.pos);
-
-      // Additional secondary floret when URL grows longer
-      if (leafDensityFactor > 1.15 && rng() < 0.5 * (leafDensityFactor - 1.0)) {
-        const offset = site.pos.clone().add(
-          new THREE.Vector3((rng() - 0.5) * 0.22, (rng() - 0.5) * 0.18, (rng() - 0.5) * 0.22)
+  // 3b. Fill Candidate Branch Nodes
+  const fillRate = 0.75 * leafDensityFactor;
+  for (const node of branchAttachmentPoints) {
+    if (rng() < fillRate) {
+      pushBlossomCard(node.x, node.z, true, node);
+      if (leafDensityFactor > 1.15 && rng() < 0.55 * (leafDensityFactor - 1.0)) {
+        const offset = node.clone().add(
+          new THREE.Vector3((rng() - 0.5) * 0.28, (rng() - 0.5) * 0.22, (rng() - 0.5) * 0.28)
         );
-        pushBlossomCluster(offset.x, offset.z, true, offset, 0.4 + rng() * 0.16);
+        pushBlossomCard(offset.x, offset.z, true, offset, 0.48 + rng() * 0.2);
       }
     }
   }
 
-  // 4c. Selective Weeping Hanging Tendrils
-  const droopCount = Math.floor(16 * leafDensityFactor);
-  const crownRadius = Math.max(1.6, zone.n * 0.74);
+  // 3c. Weeping Hanging Fringe Tendrils
+  const droopCount = Math.floor(18 * leafDensityFactor);
   for (let i = 0; i < droopCount; i++) {
     const angle = (i / droopCount) * Math.PI * 2 + (rng() - 0.5) * 0.3;
-    const rad = crownRadius * (0.65 + rng() * 0.25);
+    const rad = crownRadius * (0.65 + rng() * 0.28);
     const mx = Math.cos(angle) * rad;
     const mz = Math.sin(angle) * rad;
-    const dropPos = new THREE.Vector3(mx, H * 0.54 + rng() * 1.8, mz);
-    pushBlossomCluster(mx, mz, true, dropPos, 0.46 + rng() * 0.18);
+    const dropPos = new THREE.Vector3(mx, H * 0.5 + rng() * 1.5, mz);
+    pushBlossomCard(mx, mz, true, dropPos, 0.55 + rng() * 0.25);
   }
 
-  // 5. Ground Fallen Petals
+  // 4. Fallen Petals on Patio Tiles
   const petalCount = Math.floor(65 * leafDensityFactor);
   for (let i = 0; i < petalCount; i++) {
     const angle = rng() * Math.PI * 2;
@@ -376,17 +248,17 @@ function generateBotanicalSakura(
       x: Math.cos(angle) * rad + (rng() - 0.5) * 0.35,
       y: FLAT_TILE_TOP + 0.012,
       z: Math.sin(angle) * rad + (rng() - 0.5) * 0.35,
-      sx: 0.24 + rng() * 0.16,
+      sx: 0.26 + rng() * 0.18,
       sy: 0.02,
-      sz: 0.24 + rng() * 0.16,
+      sz: 0.26 + rng() * 0.18,
       ry: rng() * Math.PI * 2,
       c: pickIndex(rng, SAKURA_PALETTE.length),
       u: rng(),
     });
   }
 
-  // 6. Perimeter Grass & Reeds
-  const perimeterCount = 36;
+  // 5. Perimeter Corner Grass & Floral Reeds
+  const perimeterCount = 38;
   for (let i = 0; i < perimeterCount; i++) {
     const angle = (i / perimeterCount) * Math.PI * 2 + (rng() - 0.5) * 0.2;
     const rad = half - 1.4 + (rng() - 0.5) * 1.2;
@@ -404,7 +276,7 @@ function generateBotanicalSakura(
       rx: (rng() - 0.5) * 0.25,
       ry: rng() * Math.PI,
       rz: (rng() - 0.5) * 0.25,
-      c: pickIndex(rng, MEADOW_GRASS.length),
+      c: pickIndex(rng, GRASS_PALETTE.length),
       u: rng(),
     });
 
@@ -420,7 +292,7 @@ function generateBotanicalSakura(
         rx: (rng() - 0.5) * 0.3,
         ry: rng() * Math.PI,
         rz: (rng() - 0.5) * 0.3,
-        c: pickIndex(rng, ACCENT_REEDS.length),
+        c: pickIndex(rng, REED_PALETTE.length),
         u: rng(),
       });
     }
@@ -433,51 +305,6 @@ function generateBotanicalSakura(
 
 const tmp = new THREE.Object3D();
 const col = new THREE.Color();
-
-function OrientedWoodMesh({
-  items,
-  colors,
-  geometry,
-  roughness = 0.88,
-}: {
-  items: OrientedSegment[];
-  colors: string[];
-  geometry: THREE.BufferGeometry;
-  roughness?: number;
-}) {
-  const ref = useRef<THREE.InstancedMesh>(null);
-
-  useLayoutEffect(() => {
-    const m = ref.current;
-    if (!m || items.length === 0) return;
-    for (let i = 0; i < items.length; i++) {
-      const v = items[i];
-      tmp.position.set(v.x, v.y, v.z);
-      tmp.quaternion.copy(v.quat);
-      tmp.scale.set(Math.max(0.001, v.sx), Math.max(0.001, v.sy), Math.max(0.001, v.sz));
-      tmp.updateMatrix();
-      m.setMatrixAt(i, tmp.matrix);
-      col.set(colors[v.c % colors.length]);
-      m.setColorAt(i, col);
-    }
-    m.instanceMatrix.needsUpdate = true;
-    if (m.instanceColor) m.instanceColor.needsUpdate = true;
-  }, [items, colors]);
-
-  if (items.length === 0) return null;
-
-  return (
-    <instancedMesh
-      ref={ref}
-      args={[geometry, undefined, items.length]}
-      castShadow
-      receiveShadow
-      frustumCulled={false}
-    >
-      <meshStandardMaterial roughness={roughness} metalness={0.02} />
-    </instancedMesh>
-  );
-}
 
 function InstancedBatch({
   items,
@@ -532,7 +359,7 @@ function CanopyMorphMesh({
   density,
   dark,
 }: {
-  items: BlossomCluster[];
+  items: CanopyPetal[];
   colors: THREE.Color[];
   geometry: THREE.BufferGeometry;
   seed: number;
@@ -643,13 +470,15 @@ export default function Tree({
     intro.current = 0;
   }, [seed]);
 
-  const branchSegmentGeo = useMemo(() => new THREE.CylinderGeometry(0.5, 0.5, 1, 16), []);
-  const blossomClusterGeo = useMemo(() => new THREE.DodecahedronGeometry(0.44, 0), []);
-  const petalDiscGeo = useMemo(() => new THREE.CylinderGeometry(0.52, 0.52, 0.08, 6), []);
+  const cylinderGeo = useMemo(() => new THREE.CylinderGeometry(0.5, 0.5, 1, 14), []);
+  const boxGeo = useMemo(() => new THREE.BoxGeometry(1, 1, 1), []);
+  // Compact 12-sided dodecahedron for defined floret clusters
+  const blossomClusterGeo = useMemo(() => new THREE.DodecahedronGeometry(0.46, 0), []);
+  const petalDiscGeo = useMemo(() => new THREE.CylinderGeometry(0.5, 0.5, 0.08, 6), []);
   const bladeGeo = useMemo(() => new THREE.ConeGeometry(0.1, 1, 4), []);
 
   const data = useMemo(
-    () => generateBotanicalSakura(seed, grid, zone),
+    () => generatePixelStylizedSakura(seed, grid, zone),
     [seed, grid, zone]
   );
 
@@ -675,14 +504,21 @@ export default function Tree({
   return (
     <>
       <group ref={group}>
-        {/* Continuous Trunk & Branch Network */}
-        <OrientedWoodMesh
-          items={data.woodSegments}
-          colors={BARK_PALETTE}
-          geometry={branchSegmentGeo}
+        {/* Ribbed Cylindrical Trunk */}
+        <InstancedBatch
+          items={data.trunk}
+          colors={TRUNK_PALETTE}
+          geometry={cylinderGeo}
           roughness={0.92}
         />
-        {/* Ground Drift Petals */}
+        {/* Dark Structural Branches */}
+        <InstancedBatch
+          items={data.branches}
+          colors={BRANCH_COLOR}
+          geometry={boxGeo}
+          roughness={0.88}
+        />
+        {/* Fallen Petals on Patio */}
         <InstancedBatch
           items={data.fallenPetals}
           colors={SAKURA_PALETTE}
@@ -692,20 +528,20 @@ export default function Tree({
         {/* Perimeter Grass Edges */}
         <InstancedBatch
           items={data.grassEdges}
-          colors={MEADOW_GRASS}
+          colors={GRASS_PALETTE}
           geometry={bladeGeo}
           roughness={0.85}
         />
         {/* Accent Floral Reeds */}
         <InstancedBatch
           items={data.pinkReeds}
-          colors={ACCENT_REEDS}
+          colors={REED_PALETTE}
           geometry={bladeGeo}
           roughness={0.7}
         />
       </group>
 
-      {/* Layered Blossom Clusters Distributed Along Branch Nodes */}
+      {/* Layered, Crisp Blossom Flakes */}
       <CanopyMorphMesh
         items={data.canopy}
         colors={canopyColors}
