@@ -1,46 +1,51 @@
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { morph } from "./shared";
 
-interface Block {
+interface Puff {
   p: [number, number, number];
   s: [number, number, number];
 }
 
-const LAYOUTS: Block[][] = [
+// Organic, cloud puffs with varied elevations and depth
+const CLOUD_CONFIGS: Puff[][] = [
   [
-    { p: [0, 0, 0], s: [2.5, 1.25, 1.6] },
-    { p: [1.7, 0.3, 0.2], s: [1.7, 1, 1.2] },
-    { p: [-1.7, 0.2, -0.2], s: [1.8, 1.1, 1.3] },
-    { p: [0.3, 0.8, 0], s: [1.5, 0.9, 1.1] },
+    { p: [0, 0, 0], s: [3.4, 1.9, 2.2] },
+    { p: [2.2, 0.35, 0.3], s: [2.4, 1.5, 1.8] },
+    { p: [-2.2, 0.25, -0.3], s: [2.5, 1.6, 1.9] },
+    { p: [0.5, 1.1, 0.1], s: [2.2, 1.4, 1.7] },
+    { p: [-1.2, 0.85, 0.4], s: [1.8, 1.2, 1.5] },
   ],
   [
-    { p: [0, 0, 0], s: [3, 1.1, 1.4] },
-    { p: [2, 0.25, -0.1], s: [1.5, 0.85, 1.1] },
-    { p: [-2, 0.35, 0.1], s: [1.6, 1, 1.2] },
+    { p: [0, 0, 0], s: [4.0, 1.8, 2.1] },
+    { p: [2.6, 0.3, -0.2], s: [2.2, 1.3, 1.6] },
+    { p: [-2.6, 0.4, 0.2], s: [2.3, 1.4, 1.7] },
+    { p: [0.8, 0.95, -0.2], s: [2.0, 1.3, 1.5] },
   ],
   [
-    { p: [0, 0, 0], s: [2.1, 1.4, 1.8] },
-    { p: [1.4, 0.5, 0.3], s: [1.5, 1, 1.3] },
-    { p: [-1.3, 0.45, -0.3], s: [1.4, 1, 1.2] },
-    { p: [0.1, 1, 0.1], s: [1.3, 0.8, 1] },
+    { p: [0, 0, 0], s: [3.0, 2.0, 2.4] },
+    { p: [1.9, 0.65, 0.4], s: [2.1, 1.5, 1.8] },
+    { p: [-1.8, 0.6, -0.4], s: [2.0, 1.4, 1.7] },
+    { p: [0.2, 1.4, 0.1], s: [1.8, 1.3, 1.5] },
+    { p: [1.1, 1.1, -0.3], s: [1.6, 1.1, 1.3] },
   ],
 ];
 
 export default function Clouds({ total }: { total: number }) {
-  const W = total * 1.05;
+  const W = total * 1.35;
   const groups = useRef<Array<THREE.Group | null>>([]);
 
+  // High elevation placement to frame the taller tree head
   const clouds = useMemo(
     () =>
-      LAYOUTS.map((blocks, i) => ({
+      CLOUD_CONFIGS.map((blocks, i) => ({
         blocks,
-        x: -W + (i * 2 * W) / LAYOUTS.length + (i % 2 ? 6 : -5),
-        y: total * 0.46 + (i % 2) * total * 0.13 + i,
-        z: -total * 0.3 + i * total * 0.2,
-        s: 0.95 + (i % 3) * 0.35,
-        speed: 0.35 + (i % 3) * 0.18,
+        x: -W + (i * 2 * W) / CLOUD_CONFIGS.length + (i % 2 ? 8 : -7),
+        y: total * 0.72 + (i % 2) * total * 0.16 + i * 1.5,
+        z: -total * 0.45 + i * total * 0.3,
+        s: 1.1 + (i % 3) * 0.4,
+        speed: 0.32 + (i % 3) * 0.16,
       })),
     [W, total],
   );
@@ -49,35 +54,52 @@ export default function Clouds({ total }: { total: number }) {
     () =>
       new THREE.MeshStandardMaterial({
         color: "#ffffff",
-        roughness: 1,
+        roughness: 0.9,
+        metalness: 0,
         transparent: true,
-        opacity: 0.9,
-        emissive: "#ffffff",
-        emissiveIntensity: 0.05,
+        opacity: 0.92,
+        emissive: "#fff2f6",
+        emissiveIntensity: 0.08,
       }),
     [],
   );
-  const geo = useMemo(() => new THREE.BoxGeometry(1, 1, 1), []);
+
+  // 12-sided Dodecahedron for soft, pillowy cloud puffs
+  const geo = useMemo(() => new THREE.DodecahedronGeometry(1, 0), []);
+
+  useEffect(
+    () => () => {
+      geo.dispose();
+      mat.dispose();
+    },
+    [geo, mat],
+  );
 
   useFrame((state, rawDt) => {
     const dt = Math.min(rawDt, 0.05);
-    const q = morph.p * morph.p * (3 - 2 * morph.p);
+    const p = morph?.p ?? 0;
+    const q = p * p * (3 - 2 * p);
     const vis = 1 - q;
     mat.opacity = vis * 0.92;
     const show = mat.opacity > 0.02;
-    clouds.forEach((c, i) => {
+
+    for (let i = 0; i < clouds.length; i++) {
+      const c = clouds[i];
       const g = groups.current[i];
-      if (!g) return;
+      if (!g) continue;
+
       g.visible = show;
-      if (!show) return;
+      if (!show) continue;
+
       c.x += c.speed * dt;
-      if (c.x > W + 10) c.x = -W - 10;
+      if (c.x > W + 14) c.x = -W - 14;
+
       g.position.set(
         c.x,
-        c.y + Math.sin(state.clock.elapsedTime * 0.3 + i * 2) * 0.6,
+        c.y + Math.sin(state.clock.elapsedTime * 0.25 + i * 2) * 0.75,
         c.z,
       );
-    });
+    }
   });
 
   return (
@@ -92,7 +114,15 @@ export default function Clouds({ total }: { total: number }) {
           scale={c.s}
         >
           {c.blocks.map((b, j) => (
-            <mesh key={j} geometry={geo} material={mat} position={b.p} scale={b.s} />
+            <mesh
+              key={j}
+              geometry={geo}
+              material={mat}
+              position={b.p}
+              scale={b.s}
+              castShadow={false}
+              receiveShadow={false}
+            />
           ))}
         </group>
       ))}
