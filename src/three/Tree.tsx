@@ -70,15 +70,14 @@ interface TreeSceneData {
 
 const FLAT_TILE_TOP = 0.14;
 
-// Rich, luminous palette with warm coral and deep rose highlights
 const GUSHY_SAKURA_PALETTE = [
-  "#ff9ebb", // Vibrant soft bloom
-  "#ffb6cd", // Velvet highlight petal
-  "#f77f9f", // Saturated floral core
-  "#ffc8d9", // Ethereal translucent tip
-  "#ea658b", // Deep under-canopy rose
-  "#ffe2ec", // Pure light blossom froth
-  "#ff8fae", // Rosy mid-tone
+  "#ff9ebb",
+  "#ffb6cd",
+  "#f77f9f",
+  "#ffc8d9",
+  "#ea658b",
+  "#ffe2ec",
+  "#ff8fae",
 ];
 
 const TWISTED_WOOD_PALETTE = [
@@ -128,10 +127,10 @@ function createSegment(
   };
 }
 
-function generateGushyBonsaiSakura(
+function generate75PercentCoverageSakura(
   seed: number,
   grid: QRGrid,
-  zone: ForestZone,
+  _zone: ForestZone,
   colorPaletteLength: number
 ): TreeSceneData {
   const rng = mulberry32(seed);
@@ -145,12 +144,19 @@ function generateGushyBonsaiSakura(
     pinkReeds: [],
   };
 
-  const half = (grid.total - 1) / 2;
-  const H = 9.4;
-  const baseTrunkRadius = 1.35;
+  const total = grid.total;
+  const half = (total - 1) / 2;
+
+  // Set boundary to occupy 75% of the overall QR Grid
+  const coverageRatio = 0.75;
+  const coverageBound = half * coverageRatio;
+  const crownRadius = coverageBound * 1.05;
+
+  const H = 10.2;
+  const baseTrunkRadius = 1.45;
 
   const textLength = grid.text ? grid.text.length : 16;
-  const petalMultiplier = Math.min(4.0, Math.max(1.0, 1.0 + (textLength - 16) * 0.06));
+  const petalMultiplier = Math.min(4.0, Math.max(1.0, 1.0 + (textLength - 16) * 0.055));
 
   // 1. Root Base
   const rootCount = 7;
@@ -172,7 +178,7 @@ function generateGushyBonsaiSakura(
     );
   }
 
-  // 2. Twisted Bonsai Trunk
+  // 2. Twisted Trunk Column
   const trunkSegments = 18;
   const trunkSpline: { pos: THREE.Vector3; radius: number }[] = [];
   const twistAngleOffset = rng() * Math.PI * 2;
@@ -220,28 +226,29 @@ function generateGushyBonsaiSakura(
     }
   }
 
-  // 3. Volumetric Bonsai Cloud Pad Anchors
+  // 3. Wide Cloud Pads Scaled to 75% Coverage
   const cloudCenters = [
-    { x: 0.2, y: H * 0.88, z: -0.1, radius: 2.4, weight: 1.5 },
-    { x: -2.4, y: H * 0.65, z: 0.3, radius: 1.6, weight: 1.1 },
-    { x: -3.1, y: H * 0.46, z: 0.6, radius: 1.35, weight: 0.9 },
-    { x: 2.6, y: H * 0.52, z: 0.4, radius: 1.45, weight: 1.0 },
+    { x: 0.0, y: H * 0.88, z: 0.0, radius: crownRadius * 0.65, weight: 1.5 },
+    { x: -coverageBound * 0.65, y: H * 0.65, z: coverageBound * 0.2, radius: crownRadius * 0.55, weight: 1.2 },
+    { x: -coverageBound * 0.75, y: H * 0.48, z: -coverageBound * 0.3, radius: crownRadius * 0.45, weight: 1.0 },
+    { x: coverageBound * 0.7, y: H * 0.56, z: coverageBound * 0.25, radius: crownRadius * 0.5, weight: 1.1 },
+    { x: coverageBound * 0.4, y: H * 0.68, z: -coverageBound * 0.6, radius: crownRadius * 0.45, weight: 1.0 },
   ];
 
   const potentialFlowerSites: { pos: THREE.Vector3; weight: number; cloudIdx: number }[] = [];
 
   cloudCenters.forEach((cloud, cIdx) => {
-    const attachIdx = cIdx === 0 ? trunkSegments - 2 : Math.floor(trunkSegments * (0.55 + cIdx * 0.12));
+    const attachIdx = cIdx === 0 ? trunkSegments - 2 : Math.floor(trunkSegments * (0.45 + cIdx * 0.1));
     const startPoint = trunkSpline[Math.min(trunkSegments - 1, attachIdx)];
     const targetPos = new THREE.Vector3(cloud.x, cloud.y - 0.5, cloud.z);
-    const steps = 7;
+    const steps = 8;
 
     let currStart = startPoint.pos.clone();
     let currRadius = startPoint.radius * 0.65;
 
     for (let s = 1; s <= steps; s++) {
       const progress = s / steps;
-      const arch = Math.sin(progress * Math.PI) * 0.35;
+      const arch = Math.sin(progress * Math.PI) * 0.4;
       const nextEnd = new THREE.Vector3().lerpVectors(startPoint.pos, targetPos, progress);
       nextEnd.y += arch;
       nextEnd.x += (rng() - 0.5) * 0.15;
@@ -252,7 +259,7 @@ function generateGushyBonsaiSakura(
         createSegment(currStart, nextEnd, currRadius, nextRadius, pickIndex(rng, TWISTED_WOOD_PALETTE.length), rng())
       );
 
-      if (progress > 0.35) {
+      if (progress > 0.3) {
         potentialFlowerSites.push({
           pos: nextEnd.clone(),
           weight: progress,
@@ -262,7 +269,7 @@ function generateGushyBonsaiSakura(
 
       if (s > 2 && s % 2 === 0) {
         const twigEnd = nextEnd.clone().add(
-          new THREE.Vector3((rng() - 0.5) * 0.6, (rng() - 0.5) * 0.4 + 0.2, (rng() - 0.5) * 0.6)
+          new THREE.Vector3((rng() - 0.5) * 0.7, (rng() - 0.5) * 0.4 + 0.2, (rng() - 0.5) * 0.7)
         );
         data.woodSegments.push(
           createSegment(nextEnd, twigEnd, nextRadius * 0.6, 0.06, 1, rng())
@@ -279,7 +286,7 @@ function generateGushyBonsaiSakura(
     }
   });
 
-  // 4. Ultra-Gushy Blossom Puffs with Soft Overlap
+  // 4. Volumetric Blossom Placement
   const pushBlossomCluster = (
     mx: number,
     mz: number,
@@ -307,14 +314,14 @@ function generateGushyBonsaiSakura(
       }
 
       const distNorm = Math.min(1, minDist / targetCloud.radius);
-      const dome = Math.sqrt(Math.max(0, 1 - distNorm * distNorm)) * 1.9;
+      const dome = Math.sqrt(Math.max(0, 1 - distNorm * distNorm)) * 2.2;
 
       ox = mx * 0.92 + (rng() - 0.5) * 0.35;
       oy = targetCloud.y + dome + (rng() - 0.5) * 0.6;
       oz = mz * 0.92 + (rng() - 0.5) * 0.35;
     }
 
-    const clusterScale = customSize || (0.48 + rng() * 0.2);
+    const clusterScale = customSize || (0.5 + rng() * 0.2);
 
     data.canopy.push({
       ox,
@@ -332,18 +339,22 @@ function generateGushyBonsaiSakura(
     });
   };
 
-  // QR Code Modules
-  for (let r = 0; r < zone.n; r++) {
-    for (let c = 0; c < zone.n; c++) {
-      const gr = zone.z0 + r;
-      const gc = zone.x0 + c;
-      if (grid?.data && grid.data[gr * grid.total + gc] === 1) {
-        pushBlossomCluster(gc - half, gr - half, false);
+  // 4a. Map QR Modules falling inside the 75% coverage footprint to Tree Blossoms
+  for (let r = 0; r < total; r++) {
+    for (let c = 0; c < total; c++) {
+      const mx = c - half;
+      const mz = r - half;
+
+      // Ensure modules inside 75% coverage map to the tree
+      if (Math.abs(mx) <= coverageBound && Math.abs(mz) <= coverageBound) {
+        if (grid?.data && grid.data[r * total + c] === 1) {
+          pushBlossomCluster(mx, mz, false);
+        }
       }
     }
   }
 
-  // Heavy floral density layered onto branch waypoints
+  // 4b. Layer Floral Density onto Branch Waypoints
   for (const site of potentialFlowerSites) {
     pushBlossomCluster(site.pos.x, site.pos.z, true, site.pos);
 
@@ -351,34 +362,34 @@ function generateGushyBonsaiSakura(
     for (let p = 0; p < puffs; p++) {
       const offset = site.pos.clone().add(
         new THREE.Vector3(
-          (rng() - 0.5) * 0.44,
+          (rng() - 0.5) * 0.48,
           (rng() - 0.5) * 0.36,
-          (rng() - 0.5) * 0.44
+          (rng() - 0.5) * 0.48
         )
       );
       pushBlossomCluster(offset.x, offset.z, true, offset, 0.44 + rng() * 0.18);
     }
   }
 
-  // Deep cloud dome fills
+  // 4c. Deep Cloud Dome Fills
   cloudCenters.forEach((cloud) => {
-    const count = Math.floor(60 * cloud.weight * petalMultiplier);
+    const count = Math.floor(70 * cloud.weight * petalMultiplier);
     for (let i = 0; i < count; i++) {
       const ang = rng() * Math.PI * 2;
       const rad = Math.sqrt(rng()) * cloud.radius;
       const mx = cloud.x + Math.cos(ang) * rad;
       const mz = cloud.z + Math.sin(ang) * rad;
-      const dome = Math.pow(Math.max(0, 1 - rad / cloud.radius), 0.52) * 1.6;
+      const dome = Math.pow(Math.max(0, 1 - rad / cloud.radius), 0.52) * 1.8;
       const fillerPos = new THREE.Vector3(mx, cloud.y + dome + (rng() - 0.5) * 0.45, mz);
-      pushBlossomCluster(mx, mz, true, fillerPos, 0.46 + rng() * 0.18);
+      pushBlossomCluster(mx, mz, true, fillerPos, 0.48 + rng() * 0.18);
     }
   });
 
-  // 5. Air Petal Drift Swirl (Cascading ambient particles)
-  const driftCount = 48;
+  // 5. Air Petal Drift Swirl
+  const driftCount = 54;
   for (let i = 0; i < driftCount; i++) {
     const angle = rng() * Math.PI * 2;
-    const rad = 0.6 + Math.sqrt(rng()) * 3.4;
+    const rad = 0.6 + Math.sqrt(rng()) * crownRadius * 1.1;
     data.driftingPetals.push({
       baseX: Math.cos(angle) * rad,
       baseY: 0.8 + rng() * (H * 0.85),
@@ -414,11 +425,11 @@ function generateGushyBonsaiSakura(
     });
   });
 
-  // 7. Ground Fallen Petals (Covering the root flare bedding)
-  const petalCount = Math.floor(130 * petalMultiplier);
+  // 7. Ground Fallen Petals
+  const petalCount = Math.floor(140 * petalMultiplier);
   for (let i = 0; i < petalCount; i++) {
     const angle = rng() * Math.PI * 2;
-    const rad = 0.3 + Math.sqrt(rng()) * (half - 0.6);
+    const rad = 0.3 + Math.sqrt(rng()) * coverageBound;
     data.fallenPetals.push({
       x: Math.cos(angle) * rad + (rng() - 0.5) * 0.35,
       y: FLAT_TILE_TOP + 0.012,
@@ -432,7 +443,7 @@ function generateGushyBonsaiSakura(
     });
   }
 
-  // 8. Grass & Floral Reeds
+  // 8. Perimeter Grass & Accent Reeds
   const perimeterCount = 42;
   for (let i = 0; i < perimeterCount; i++) {
     const angle = (i / perimeterCount) * Math.PI * 2 + (rng() - 0.5) * 0.25;
@@ -688,11 +699,9 @@ function DriftingPetalsMesh({
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
       const t = timeRef.current * item.speed + item.phase;
-      
-      // Cascading downward fall loop
-      const y = ((item.baseY - (timeRef.current * item.speed * 0.8)) % 8.0);
+      const y = (item.baseY - timeRef.current * item.speed * 0.8) % 8.0;
       const actualY = y < 0.2 ? y + 8.0 : y;
-      
+
       const swayX = Math.sin(t * item.swaySpeed) * 0.45;
       const swayZ = Math.cos(t * item.swaySpeed * 0.8) * 0.45;
 
@@ -754,7 +763,7 @@ export default function Tree({
   }, [palette]);
 
   const data = useMemo(
-    () => generateGushyBonsaiSakura(seed, grid, zone, activeFoliageHexArray.length),
+    () => generate75PercentCoverageSakura(seed, grid, zone, activeFoliageHexArray.length),
     [seed, grid, zone, activeFoliageHexArray.length]
   );
 
@@ -787,7 +796,7 @@ export default function Tree({
           geometry={branchSegmentGeo}
           roughness={0.92}
         />
-        {/* Garden Boulders at Base */}
+        {/* Garden Boulders */}
         <InstancedBatch
           items={data.rocks}
           colors={ROCK_PALETTE}
@@ -801,7 +810,7 @@ export default function Tree({
           geometry={petalDiscGeo}
           roughness={0.55}
         />
-        {/* Ambient Drifting Swirling Petals */}
+        {/* Ambient Drifting Petals */}
         <DriftingPetalsMesh
           items={data.driftingPetals}
           colors={canopyColors}
@@ -814,7 +823,7 @@ export default function Tree({
           geometry={bladeGeo}
           roughness={0.85}
         />
-        {/* Accent Flora Reeds */}
+        {/* Accent Floral Reeds */}
         <InstancedBatch
           items={data.pinkReeds}
           colors={ACCENT_REEDS}
@@ -823,7 +832,7 @@ export default function Tree({
         />
       </group>
 
-      {/* Overflowing Tiered Blossom Cloud Pads */}
+      {/* Canopy covering 75% of the overall QR Grid */}
       <CanopyMorphMesh
         items={data.canopy}
         colors={canopyColors}
