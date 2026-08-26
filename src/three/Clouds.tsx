@@ -8,59 +8,53 @@ interface Puff {
   s: [number, number, number];
 }
 
-// Organic, overlapping spherical cloud clusters
 const CLOUD_CONFIGS: Puff[][] = [
   [
-    { p: [0, 0, 0], s: [3.4, 2.0, 2.2] },
-    { p: [1.8, -0.15, 0.2], s: [2.3, 1.5, 1.8] },
-    { p: [-1.9, -0.1, -0.2], s: [2.4, 1.6, 1.8] },
-    { p: [0.4, 0.9, 0.1], s: [2.1, 1.4, 1.6] },
-    { p: [-1.0, 0.7, 0.3], s: [1.8, 1.2, 1.5] },
+    { p: [0, 0, 0], s: [3.2, 1.8, 2.0] },
+    { p: [1.6, -0.1, 0.2], s: [2.1, 1.4, 1.6] },
+    { p: [-1.7, -0.1, -0.2], s: [2.2, 1.5, 1.6] },
+    { p: [0.3, 0.8, 0.1], s: [1.9, 1.3, 1.5] },
+    { p: [-0.9, 0.6, 0.3], s: [1.6, 1.1, 1.3] },
   ],
   [
-    { p: [0, 0, 0], s: [4.0, 1.9, 2.1] },
-    { p: [2.2, -0.15, -0.2], s: [2.2, 1.3, 1.6] },
-    { p: [-2.2, -0.05, 0.2], s: [2.3, 1.4, 1.7] },
-    { p: [0.6, 0.85, -0.1], s: [2.0, 1.3, 1.5] },
+    { p: [0, 0, 0], s: [3.6, 1.8, 2.0] },
+    { p: [2.0, -0.1, -0.2], s: [2.0, 1.2, 1.5] },
+    { p: [-2.0, -0.05, 0.2], s: [2.1, 1.3, 1.5] },
+    { p: [0.5, 0.8, -0.1], s: [1.8, 1.2, 1.4] },
   ],
   [
-    { p: [0, 0, 0], s: [3.0, 2.1, 2.4] },
-    { p: [1.6, 0.3, 0.3], s: [2.0, 1.5, 1.7] },
-    { p: [-1.5, 0.25, -0.3], s: [1.9, 1.4, 1.6] },
-    { p: [0.1, 1.15, 0.1], s: [1.7, 1.3, 1.5] },
-    { p: [0.9, 0.9, -0.2], s: [1.5, 1.1, 1.3] },
-  ],
-  [
-    { p: [0, 0, 0], s: [2.8, 1.6, 1.9] },
-    { p: [1.4, -0.1, 0.2], s: [1.8, 1.3, 1.5] },
-    { p: [-1.4, 0.1, -0.2], s: [1.7, 1.2, 1.4] },
-    { p: [0.3, 0.75, 0], s: [1.5, 1.1, 1.3] },
+    { p: [0, 0, 0], s: [2.8, 1.9, 2.2] },
+    { p: [1.5, 0.25, 0.3], s: [1.8, 1.4, 1.5] },
+    { p: [-1.4, 0.2, -0.3], s: [1.7, 1.3, 1.5] },
+    { p: [0.1, 1.0, 0.1], s: [1.5, 1.2, 1.4] },
   ],
 ];
 
-const BASE_OPACITY = 0.42;
+const BASE_OPACITY = 0.38;
 
 export default function Clouds({ total }: { total: number }) {
-  const W = Math.max(32, total * 1.5);
+  // Tightened horizontal loop bound so clouds stay directly around the scene
+  const W = Math.min(22, total * 0.95);
   const groups = useRef<Array<THREE.Group | null>>([]);
 
+  // Pulled Z-depths and X lanes close into the camera frame
   const clouds = useMemo(
     () =>
       CLOUD_CONFIGS.map((blocks, i) => {
-        const laneX = -W + (i * 2 * W) / CLOUD_CONFIGS.length + (i % 2 ? 6 : -6);
+        const laneX = -W + (i * 2 * W) / CLOUD_CONFIGS.length + (i % 2 ? 2.5 : -2.5);
         return {
           blocks,
           x: laneX,
-          y: 11.5 + (i % 3) * 2.2,
-          z: -total * 0.45 + (i % 2) * (total * 0.35) - 4,
-          s: 1.0 + (i % 3) * 0.25,
-          speed: 0.42 + (i % 2) * 0.2,
+          y: 11.0 + (i % 3) * 1.6,
+          // Kept close behind the tree crown without pushing into the far distance
+          z: -4.0 + (i % 3) * 3.5,
+          s: 0.85 + (i % 3) * 0.18,
+          speed: 0.35 + (i % 2) * 0.15,
         };
       }),
-    [W, total],
+    [W],
   );
 
-  // Soft, semi-transparent ethereal material
   const mat = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
@@ -70,14 +64,13 @@ export default function Clouds({ total }: { total: number }) {
         transparent: true,
         opacity: BASE_OPACITY,
         emissive: "#ffeef3",
-        emissiveIntensity: 0.18,
+        emissiveIntensity: 0.14,
         depthWrite: false,
       }),
     [],
   );
 
-  // Smooth sphere geometry removes faceted block edges
-  const geo = useMemo(() => new THREE.SphereGeometry(1, 18, 18), []);
+  const geo = useMemo(() => new THREE.SphereGeometry(1, 16, 16), []);
 
   useEffect(
     () => () => {
@@ -105,13 +98,13 @@ export default function Clouds({ total }: { total: number }) {
       if (!show) continue;
 
       c.x += c.speed * dt;
-      if (c.x > W + 12) {
-        c.x = -W - 12;
+      if (c.x > W + 6) {
+        c.x = -W - 6;
       }
 
       g.position.set(
         c.x,
-        c.y + Math.sin(state.clock.elapsedTime * 0.3 + i * 1.8) * 0.45,
+        c.y + Math.sin(state.clock.elapsedTime * 0.3 + i * 1.8) * 0.35,
         c.z,
       );
     }
