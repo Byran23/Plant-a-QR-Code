@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Flower2, QrCode } from "lucide-react";
+import { ExternalLink, Flower2, QrCode } from "lucide-react";
 import Scene from "./three/Scene";
 import Controls from "./components/Controls";
 import { FooterBits, Header, Hint, ScannerOverlay, Toast, Watermark } from "./components/Overlays";
@@ -22,7 +22,7 @@ export default function App() {
   const [toast, setToast] = useState<{ id: number; msg: string } | null>(null);
   const [copied, setCopied] = useState(false);
 
-  // Minimal viewer mode when shared (hides menus/headers, shows only tree & tap button)
+  // Minimal viewer mode when shared
   const isMinimalView = useMemo(() => {
     if (typeof window === "undefined") return false;
     const search = new URLSearchParams(window.location.search);
@@ -61,7 +61,6 @@ export default function App() {
   }, [grid, notify]);
   const activeGrid = grid ?? fallback;
 
-  /* resetting QR mode when URL content changes */
   useEffect(() => {
     setQr(false);
   }, [committed]);
@@ -82,7 +81,7 @@ export default function App() {
     }
   }, [committed, season, leaf, groundColor, salt, isMinimalView]);
 
-  /* generate clean minimalist share link */
+  /* generate clean share link */
   const onCopy = useCallback(() => {
     const params = new URLSearchParams();
     params.set("u", committed);
@@ -90,7 +89,7 @@ export default function App() {
     if (leaf) params.set("lf", leaf.replace("#", ""));
     if (groundColor) params.set("gd", groundColor.replace("#", ""));
     if (salt) params.set("r", String(salt));
-    params.set("v", "1"); // activate minimal view mode for recipients
+    params.set("v", "1");
 
     const shareUrl = `${window.location.origin}${window.location.pathname}#${params.toString()}`;
 
@@ -98,7 +97,7 @@ export default function App() {
       setCopied(true);
       window.clearTimeout(copyTimer.current);
       copyTimer.current = window.setTimeout(() => setCopied(false), 1800);
-      notify("Share link copied — shows just the blooming tree & QR");
+      notify("Share link copied — includes direct open link & minimal view");
     };
 
     if (navigator.clipboard?.writeText) {
@@ -117,6 +116,14 @@ export default function App() {
   }, [activeGrid, palette, notify]);
 
   const toggle = useCallback(() => setQr((v) => !v), []);
+
+  const handleOpenLink = useCallback(() => {
+    let target = committed.trim();
+    if (!/^https?:\/\//i.test(target)) {
+      target = `https://${target}`;
+    }
+    window.open(target, "_blank", "noopener,noreferrer");
+  }, [committed]);
 
   /* spacebar flips the tree */
   useEffect(() => {
@@ -179,27 +186,40 @@ export default function App() {
       <ScannerOverlay show={qr} />
 
       {isMinimalView ? (
-        /* Minimal Shared Presentation Mode: Just Floating Flip Button */
+        /* Minimal Shared Presentation Mode with Bloom toggle and Open Link */
         <div className="pointer-events-none fixed inset-0 z-40 flex flex-col items-center justify-between p-6">
           <div />
-          <motion.button
+          <motion.div
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            onClick={toggle}
-            className="pointer-events-auto flex items-center gap-2.5 rounded-full border border-rose-950/20 bg-rose-950/90 px-6 py-3 text-rose-50 shadow-[0_16px_36px_-12px_rgba(76,20,35,0.5)] backdrop-blur-xl transition-all hover:scale-105 active:scale-95"
+            className="flex items-center gap-3"
           >
-            {qr ? (
-              <>
-                <Flower2 className="h-4 w-4 text-rose-300" />
-                <span className="text-xs font-semibold">Bloom Sakura Tree</span>
-              </>
-            ) : (
-              <>
-                <QrCode className="h-4 w-4 text-rose-300" />
-                <span className="text-xs font-semibold">Scan QR Code</span>
-              </>
-            )}
-          </motion.button>
+            <button
+              onClick={toggle}
+              className="pointer-events-auto flex items-center gap-2 rounded-full border border-rose-950/20 bg-rose-950/90 px-5 py-3 text-rose-50 shadow-[0_16px_36px_-12px_rgba(76,20,35,0.5)] backdrop-blur-xl transition-all hover:scale-105 active:scale-95"
+            >
+              {qr ? (
+                <>
+                  <Flower2 className="h-4 w-4 text-rose-300" />
+                  <span className="text-xs font-semibold">Bloom Sakura</span>
+                </>
+              ) : (
+                <>
+                  <QrCode className="h-4 w-4 text-rose-300" />
+                  <span className="text-xs font-semibold">Assemble QR</span>
+                </>
+              )}
+            </button>
+
+            <button
+              onClick={handleOpenLink}
+              title={`Open ${committed}`}
+              className="pointer-events-auto flex items-center gap-2 rounded-full border border-stone-300/80 bg-white/90 px-4 py-3 text-stone-800 shadow-md backdrop-blur-xl transition-all hover:scale-105 active:scale-95"
+            >
+              <ExternalLink className="h-4 w-4 text-rose-600" />
+              <span className="text-xs font-semibold">Open Link</span>
+            </button>
+          </motion.div>
         </div>
       ) : (
         /* Full Studio Mode */
@@ -237,6 +257,7 @@ export default function App() {
               onDownload={onDownload}
               qr={qr}
               onToggle={toggle}
+              onOpenLink={handleOpenLink}
               gridLabel={`${activeGrid.size}×${activeGrid.size}`}
             />
           </div>

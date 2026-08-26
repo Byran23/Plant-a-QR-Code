@@ -4,13 +4,13 @@ import {
   Copy,
   Dices,
   Download,
+  ExternalLink,
   Flower2,
   Leaf,
   Link2,
   QrCode,
   RotateCcw,
   Snowflake,
-  Sparkles,
   Sun,
 } from "lucide-react";
 import { cn } from "../utils/cn";
@@ -42,6 +42,7 @@ export default function Controls({
   onDownload,
   qr,
   onToggle,
+  onOpenLink,
   gridLabel,
 }: {
   url: string;
@@ -60,6 +61,7 @@ export default function Controls({
   onDownload: () => void;
   qr: boolean;
   onToggle: () => void;
+  onOpenLink?: () => void;
   gridLabel: string;
 }) {
   return (
@@ -89,6 +91,17 @@ export default function Controls({
             {gridLabel}
           </span>
         </div>
+
+        {onOpenLink && (
+          <button
+            onClick={onOpenLink}
+            className={iconBtn}
+            title="Open link in new tab"
+            aria-label="Open link"
+          >
+            <ExternalLink className="h-[17px] w-[17px] text-rose-600" />
+          </button>
+        )}
 
         <button
           onClick={onShuffle}
