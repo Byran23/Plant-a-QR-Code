@@ -8,10 +8,9 @@ import { mulberry32, pickIndex } from "../lib/random";
 import { morph, clamp01, easeOutBack, smooth01 } from "./shared";
 
 /**
- * Garden camouflage: every dark QR module outside the tree's forest zone is
- * disguised as a bush, rock cluster, flower shrub or fern. Light modules get
- * sparse decoys so the pattern dissolves into a garden. On flatten, each
- * primary cube lands on its module tile and turns QR-dark.
+ * Garden camouflage: Every dark QR module outside the 75% tree footprint
+ * is disguised as a bush, rock cluster, flower shrub, or moss tuft.
+ * Light modules get subtle decoys that melt away when the code assembles.
  */
 
 interface CoverVoxel {
@@ -23,7 +22,7 @@ interface CoverVoxel {
   sz: number;
   fx: number;
   fz: number;
-  pool: number; // 0 bush greens · 1 rocks · 2 accents · 3 tuft greens
+  pool: number; // 0 bush greens · 1 rocks · 2 accents/petals · 3 tuft greens
   ci: number;
   primary: boolean;
   rot: number;
@@ -35,23 +34,28 @@ const FLAT_Y = FLAT_TOP + 0.085;
 const tmp = new THREE.Object3D();
 const col = new THREE.Color();
 
-function generateCovers(seed: number, grid: QRGrid, zone: ForestZone): CoverVoxel[] {
+function generateCovers(seed: number, grid: QRGrid, _zone: ForestZone): CoverVoxel[] {
   const rng = mulberry32(seed ^ 0x51ab9);
   const total = grid.total;
   const half = (total - 1) / 2;
   const items: CoverVoxel[] = [];
 
-  const inZone = (r: number, c: number) =>
-    r >= zone.z0 && r < zone.z0 + zone.n && c >= zone.x0 && c < zone.x0 + zone.n;
+  // Match the 75% tree canopy coverage boundary
+  const coverageBound = half * 0.75;
+  const inTreeZone = (mx: number, mz: number) =>
+    Math.abs(mx) <= coverageBound && Math.abs(mz) <= coverageBound;
 
-  // count out-of-zone dark modules to decide how lavish decorations may be
   let darkOut = 0;
-  for (let i = 0; i < total * total; i++) {
-    if (grid.data[i] === 1) {
-      const r = Math.floor(i / total);
-      if (!inZone(r, i - r * total)) darkOut++;
+  for (let r = 0; r < total; r++) {
+    for (let c = 0; c < total; c++) {
+      const mx = c - half;
+      const mz = r - half;
+      if (!inTreeZone(mx, mz) && grid.data[r * total + c] === 1) {
+        darkOut++;
+      }
     }
   }
+
   const rich = darkOut <= 680;
   const decoyChance = rich ? 0.16 : 0.07;
 
@@ -86,15 +90,18 @@ function generateCovers(seed: number, grid: QRGrid, zone: ForestZone): CoverVoxe
 
   for (let r = 0; r < total; r++) {
     for (let c = 0; c < total; c++) {
-      if (inZone(r, c)) continue;
-      const dark = grid.data[r * total + c] === 1;
       const mx = c - half;
       const mz = r - half;
 
+      // Tree canopy handles the modules within the 75% footprint
+      if (inTreeZone(mx, mz)) continue;
+
+      const dark = grid.data[r * total + c] === 1;
+
       if (dark) {
         const roll = rng();
-        if (roll < 0.34) {
-          // leafy bush
+        if (roll < 0.36) {
+          // Leafy garden bush
           const s = 0.8 + rng() * 0.3;
           put(mx + jx() * 0.5, TOP + s * 0.34, mz + jx() * 0.5, s, s * 0.92, s, 0, true);
           if (rich) {
@@ -112,13 +119,13 @@ function generateCovers(seed: number, grid: QRGrid, zone: ForestZone): CoverVoxe
                 false,
               );
             }
-            if (rng() < 0.3) {
-              const sb = 0.2;
+            if (rng() < 0.35) {
+              const sb = 0.22;
               put(mx + jx(), TOP + s * 0.95, mz + jx(), sb, sb, sb, 2, false);
             }
           }
-        } else if (roll < 0.56) {
-          // rock formation
+        } else if (roll < 0.58) {
+          // Rock formation
           const s = 0.55 + rng() * 0.38;
           put(mx + jx() * 0.4, TOP + s * 0.24, mz + jx() * 0.4, s, s * 0.6, s, 1, true);
           if (rich && rng() < 0.6) {
@@ -129,7 +136,7 @@ function generateCovers(seed: number, grid: QRGrid, zone: ForestZone): CoverVoxe
             put(mx + jx(), TOP + s * 0.55, mz + jx(), 0.16, 0.3 + rng() * 0.2, 0.16, 3, false);
           }
         } else if (roll < 0.8) {
-          // flowering shrub
+          // Flowering shrub / fallen sakura bush
           const s = 0.62 + rng() * 0.2;
           put(mx + jx() * 0.5, TOP + s * 0.3, mz + jx() * 0.5, s, s * 0.62, s, 3, true);
           const heads = rich ? 2 + Math.floor(rng() * 2) : 1;
@@ -141,7 +148,7 @@ function generateCovers(seed: number, grid: QRGrid, zone: ForestZone): CoverVoxe
             put(hx, TOP + hd + 0.12, hz, 0.24, 0.2, 0.24, 2, false);
           }
         } else {
-          // fern / tall blades
+          // Fern / grass blades
           const h = 0.75 + rng() * 0.35;
           put(mx + jx() * 0.4, TOP + h * 0.42, mz + jx() * 0.4, 0.3, h, 0.3, 3, true);
           if (rich) {
@@ -153,7 +160,7 @@ function generateCovers(seed: number, grid: QRGrid, zone: ForestZone): CoverVoxe
           }
         }
       } else if (rng() < decoyChance) {
-        // decoys on light modules — they melt away when the code assembles
+        // Decoys on light modules — dissolve into patio tiles on matrix assemble
         const roll = rng();
         if (roll < 0.38) {
           const s = 0.22 + rng() * 0.16;
@@ -189,13 +196,15 @@ export default function Covers({
   const pools = useMemo(() => {
     const one = new THREE.Color();
     return [
-      palette.dark.map((c) => new THREE.Color(c)),
-      [new THREE.Color(palette.rock), one.clone().set(palette.rock).offsetHSL(0, 0, 0.09)],
-      palette.accent.map((c) => new THREE.Color(c)),
-      palette.grass.map((g) => one.clone().set(g).offsetHSL(0, 0.02, -0.16)),
+      (palette.dark?.length ? palette.dark : ["#3c6b46", "#2f5839"]).map((c) => new THREE.Color(c)),
+      [new THREE.Color(palette.rock || "#a8b2ab"), one.clone().set(palette.rock || "#a8b2ab").offsetHSL(0, 0, 0.09)],
+      (palette.accent?.length ? palette.accent : palette.foliage).map((c) => new THREE.Color(c)),
+      (palette.grass?.length ? palette.grass : ["#7eb844", "#6fa338"]).map((g) => one.clone().set(g).offsetHSL(0, 0.02, -0.16)),
     ];
   }, [palette]);
-  const qrDark = useMemo(() => new THREE.Color(palette.qrDark), [palette]);
+
+  // Outer modules turn into the finderDark / qrDark garden tone on assemble
+  const qrDark = useMemo(() => new THREE.Color(palette.finderDark || palette.qrDark || "#397d4c"), [palette]);
 
   const ref = useRef<THREE.InstancedMesh>(null);
   const st = useRef({ intro: 0, lastP: -1, dirty: true });
@@ -204,6 +213,7 @@ export default function Covers({
     st.current.intro = 0;
     st.current.dirty = true;
   }, [seed, grid]);
+
   useLayoutEffect(() => {
     st.current.dirty = true;
   }, [items, pools]);
@@ -214,7 +224,7 @@ export default function Covers({
     const s = st.current;
     const dt = Math.min(rawDt, 0.05);
     s.intro = Math.min(1, s.intro + dt * 0.8);
-    const p = morph.p;
+    const p = morph?.p ?? 0;
     if (!s.dirty && Math.abs(p - s.lastP) < 0.0005 && s.intro >= 1) return;
     s.dirty = false;
     s.lastP = p;
