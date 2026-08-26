@@ -15,6 +15,7 @@ export default function App() {
   const [url, setUrl] = useState(boot.url ?? DEFAULT_URL);
   const [committed, setCommitted] = useState(boot.url ?? DEFAULT_URL);
   const [season, setSeason] = useState(boot.season ?? 0);
+  const [rain, setRain] = useState(false);
   const [leaf, setLeaf] = useState<string | null>(boot.leaf);
   const [groundColor, setGroundColor] = useState<string | null>(boot.ground);
   const [salt, setSalt] = useState(boot.salt);
@@ -38,7 +39,6 @@ export default function App() {
     toastTimer.current = window.setTimeout(() => setToast(null), 2600);
   }, []);
 
-  /* commit input (debounced while typing) */
   useEffect(() => {
     const t = window.setTimeout(() => {
       const v = url.trim();
@@ -73,14 +73,12 @@ export default function App() {
     [season, leaf, groundColor],
   );
 
-  /* sync hash state */
   useEffect(() => {
     if (!isMinimalView) {
       writeHash({ url: committed, season, leaf, ground: groundColor, salt } satisfies ShareState);
     }
   }, [committed, season, leaf, groundColor, salt, isMinimalView]);
 
-  /* generate clean share link */
   const onCopy = useCallback(() => {
     const params = new URLSearchParams();
     params.set("u", committed);
@@ -115,6 +113,7 @@ export default function App() {
   }, [activeGrid, palette, notify]);
 
   const toggle = useCallback(() => setQr((v) => !v), []);
+  const toggleRain = useCallback(() => setRain((r) => !r), []);
 
   const handleOpenLink = useCallback(() => {
     let target = committed.trim();
@@ -124,7 +123,6 @@ export default function App() {
     window.open(target, "_blank", "noopener,noreferrer");
   }, [committed]);
 
-  /* spacebar flips the tree */
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.code !== "Space") return;
@@ -142,7 +140,6 @@ export default function App() {
 
   return (
     <div className="relative h-full w-full overflow-hidden font-sans text-stone-900 select-none">
-      {/* Dynamic atmospheric background */}
       <div className="fixed inset-0 z-0 pointer-events-none">
         <AnimatePresence>
           <motion.div
@@ -166,13 +163,9 @@ export default function App() {
         />
       </div>
 
-      {/* Season watermark */}
       <Watermark label={palette.label} />
+      <Scene grid={activeGrid} palette={palette} seed={seed} qr={qr} rain={rain} onToggle={toggle} />
 
-      {/* 3D Scene */}
-      <Scene grid={activeGrid} palette={palette} seed={seed} qr={qr} onToggle={toggle} />
-
-      {/* Vignette overlay */}
       <div
         className="pointer-events-none fixed inset-0 z-20"
         style={{
@@ -180,12 +173,9 @@ export default function App() {
         }}
       />
       <div className="noise pointer-events-none fixed inset-0 z-20 opacity-30" />
-
-      {/* Scanner viewfinder overlay */}
       <ScannerOverlay show={qr} />
 
       {isMinimalView ? (
-        /* Minimal Shared Presentation Mode with Bloom toggle and Open Link */
         <div className="pointer-events-none fixed inset-0 z-40 flex flex-col items-center justify-between p-6">
           <div />
           <motion.div
@@ -221,12 +211,10 @@ export default function App() {
           </motion.div>
         </div>
       ) : (
-        /* Full Studio Mode */
         <>
           <Header />
           <FooterBits />
 
-          {/* Bottom stack: Hint + Controls */}
           <div className="pointer-events-none fixed inset-x-0 bottom-4 z-40 flex flex-col items-center gap-3 sm:bottom-5">
             <Hint qr={qr} />
             <Controls
@@ -242,6 +230,8 @@ export default function App() {
                 setLeaf(null);
                 setGroundColor(null);
               }}
+              rain={rain}
+              onToggleRain={toggleRain}
               isCustom={isCustom}
               leafValue={leaf ?? baseSeason.foliage[1]}
               groundValue={groundColor ?? baseSeason.grass[0]}

@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import {
   Check,
+  CloudRain,
   Copy,
   Dices,
   Download,
@@ -31,6 +32,8 @@ export default function Controls({
   onCommit,
   season,
   onSeason,
+  rain,
+  onToggleRain,
   isCustom,
   leafValue,
   groundValue,
@@ -50,6 +53,8 @@ export default function Controls({
   onCommit: () => void;
   season: number;
   onSeason: (i: number) => void;
+  rain: boolean;
+  onToggleRain: () => void;
   isCustom: boolean;
   leafValue: string;
   groundValue: string;
@@ -102,6 +107,18 @@ export default function Controls({
             <ExternalLink className="h-[17px] w-[17px] text-rose-600" />
           </button>
         )}
+
+        <button
+          onClick={onToggleRain}
+          className={cn(
+            iconBtn,
+            rain && "bg-sky-100 text-sky-800 border-sky-300 shadow-sm"
+          )}
+          title={rain ? "Disable rain" : "Enable rain"}
+          aria-label="Toggle rain"
+        >
+          <CloudRain className="h-[18px] w-[18px]" />
+        </button>
 
         <button
           onClick={onShuffle}
