@@ -8,53 +8,62 @@ interface Puff {
   s: [number, number, number];
 }
 
+// Fluffy, soft cumulus puffs
 const CLOUD_CONFIGS: Puff[][] = [
   [
-    { p: [0, 0, 0], s: [3.2, 1.8, 2.0] },
-    { p: [1.6, -0.1, 0.2], s: [2.1, 1.4, 1.6] },
-    { p: [-1.7, -0.1, -0.2], s: [2.2, 1.5, 1.6] },
-    { p: [0.3, 0.8, 0.1], s: [1.9, 1.3, 1.5] },
-    { p: [-0.9, 0.6, 0.3], s: [1.6, 1.1, 1.3] },
+    { p: [0, 0, 0], s: [3.4, 1.9, 2.1] },
+    { p: [1.7, -0.15, 0.2], s: [2.3, 1.4, 1.7] },
+    { p: [-1.8, -0.1, -0.2], s: [2.4, 1.5, 1.7] },
+    { p: [0.4, 0.85, 0.1], s: [2.0, 1.3, 1.5] },
+    { p: [-0.9, 0.65, 0.3], s: [1.7, 1.1, 1.4] },
   ],
   [
-    { p: [0, 0, 0], s: [3.6, 1.8, 2.0] },
-    { p: [2.0, -0.1, -0.2], s: [2.0, 1.2, 1.5] },
-    { p: [-2.0, -0.05, 0.2], s: [2.1, 1.3, 1.5] },
-    { p: [0.5, 0.8, -0.1], s: [1.8, 1.2, 1.4] },
+    { p: [0, 0, 0], s: [3.8, 1.8, 2.0] },
+    { p: [2.1, -0.15, -0.2], s: [2.1, 1.3, 1.5] },
+    { p: [-2.1, -0.05, 0.2], s: [2.2, 1.3, 1.6] },
+    { p: [0.5, 0.8, -0.1], s: [1.9, 1.2, 1.4] },
   ],
   [
-    { p: [0, 0, 0], s: [2.8, 1.9, 2.2] },
-    { p: [1.5, 0.25, 0.3], s: [1.8, 1.4, 1.5] },
-    { p: [-1.4, 0.2, -0.3], s: [1.7, 1.3, 1.5] },
-    { p: [0.1, 1.0, 0.1], s: [1.5, 1.2, 1.4] },
+    { p: [0, 0, 0], s: [3.0, 2.0, 2.3] },
+    { p: [1.5, 0.25, 0.3], s: [2.0, 1.4, 1.6] },
+    { p: [-1.4, 0.2, -0.3], s: [1.8, 1.3, 1.5] },
+    { p: [0.1, 1.1, 0.1], s: [1.6, 1.2, 1.4] },
+    { p: [0.8, 0.85, -0.2], s: [1.4, 1.0, 1.2] },
+  ],
+  [
+    { p: [0, 0, 0], s: [2.8, 1.5, 1.8] },
+    { p: [1.3, -0.1, 0.2], s: [1.7, 1.2, 1.4] },
+    { p: [-1.3, 0.1, -0.2], s: [1.6, 1.1, 1.3] },
+    { p: [0.3, 0.7, 0], s: [1.4, 1.0, 1.2] },
   ],
 ];
 
 const BASE_OPACITY = 0.38;
 
 export default function Clouds({ total }: { total: number }) {
-  // Tightened horizontal loop bound so clouds stay directly around the scene
-  const W = Math.min(22, total * 0.95);
+  // Tight horizontal span so clouds stay well within camera view without drifting into the distance
+  const W = Math.max(22, total * 1.05);
   const groups = useRef<Array<THREE.Group | null>>([]);
 
-  // Pulled Z-depths and X lanes close into the camera frame
+  // Positioned around the tree perimeter and background sky (Z depth kept close at -4 to -9, avoiding the tree trunk & crown)
   const clouds = useMemo(
     () =>
       CLOUD_CONFIGS.map((blocks, i) => {
-        const laneX = -W + (i * 2 * W) / CLOUD_CONFIGS.length + (i % 2 ? 2.5 : -2.5);
+        const laneX = -W + (i * 2 * W) / CLOUD_CONFIGS.length + (i % 2 ? 3.5 : -3.5);
+        const zOffset = i % 2 === 0 ? -6.5 : -8.5; // Stays clearly in the background without overlapping the tree
         return {
           blocks,
           x: laneX,
-          y: 11.0 + (i % 3) * 1.6,
-          // Kept close behind the tree crown without pushing into the far distance
-          z: -4.0 + (i % 3) * 3.5,
-          s: 0.85 + (i % 3) * 0.18,
-          speed: 0.35 + (i % 2) * 0.15,
+          y: 11.8 + (i % 3) * 1.8, // Clears the tall canopy height
+          z: zOffset,
+          s: 0.95 + (i % 3) * 0.2,
+          speed: 0.38 + (i % 2) * 0.18,
         };
       }),
     [W],
   );
 
+  // Wispy, soft transparent cloud material
   const mat = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
@@ -64,13 +73,13 @@ export default function Clouds({ total }: { total: number }) {
         transparent: true,
         opacity: BASE_OPACITY,
         emissive: "#ffeef3",
-        emissiveIntensity: 0.14,
+        emissiveIntensity: 0.15,
         depthWrite: false,
       }),
     [],
   );
 
-  const geo = useMemo(() => new THREE.SphereGeometry(1, 16, 16), []);
+  const geo = useMemo(() => new THREE.SphereGeometry(1, 18, 18), []);
 
   useEffect(
     () => () => {
@@ -98,6 +107,7 @@ export default function Clouds({ total }: { total: number }) {
       if (!show) continue;
 
       c.x += c.speed * dt;
+      // Wrap seamlessly within the framed sky width
       if (c.x > W + 6) {
         c.x = -W - 6;
       }
