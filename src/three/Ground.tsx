@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
-import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 import type { QRGrid } from "../lib/qr";
 import type { Palette } from "../lib/palettes";
 import { mulberry32, pickIndex } from "../lib/random";
@@ -19,12 +18,22 @@ interface Tile {
 const tmp = new THREE.Object3D();
 const col = new THREE.Color();
 
-/**
- * The meadow. In tree mode every tile is grass — the QR pattern is carried
- * entirely by the tree canopy and the garden cover objects, so the code is
- * invisible until the scene flattens (tiles still flip to module-true
- * black/white underneath, guaranteeing a perfect scan).
- */
+// Stone patio tints for the 3D ground
+const STONE_PATIO_COLORS = [
+  "#ede7de",
+  "#e3ddd2",
+  "#f4eee4",
+  "#dad3c6",
+  "#ede6db",
+];
+
+// Fallback outer grass module colors
+const GARDEN_GREEN_MODULES = [
+  "#529134",
+  "#46822b",
+  "#5a9d3a",
+];
+
 export default function Ground({
   grid,
   palette,
@@ -38,11 +47,13 @@ export default function Ground({
   const count = total * total;
   const half = (total - 1) / 2;
 
-  const geo = useMemo(() => new RoundedBoxGeometry(1, 1, 1, 2, 0.085), []);
+  // Use standard BoxGeometry for reliable bundler compatibility
+  const geo = useMemo(() => new THREE.BoxGeometry(1, 1, 1), []);
   const mat = useMemo(
-    () => new THREE.MeshStandardMaterial({ roughness: 0.92, metalness: 0 }),
+    () => new THREE.MeshStandardMaterial({ roughness: 0.88, metalness: 0 }),
     [],
   );
+
   useEffect(
     () => () => {
       geo.dispose();
@@ -57,25 +68,55 @@ export default function Ground({
   const tiles = useMemo<Tile[]>(() => {
     const rng = mulberry32(seed ^ 0x9e3779b9);
     const arr: Tile[] = [];
-    const grassPool = palette.grass.map((c) => new THREE.Color(c));
-    const flatDark = new THREE.Color(palette.qrDark);
-    const flatLight = new THREE.Color(palette.qrLight);
+
+    const stonePool = STONE_PATIO_COLORS.map((c) => new THREE.Color(c));
+    const grassPool = (palette.grass?.length ? palette.grass : GARDEN_GREEN_MODULES).map(
+      (c) => new THREE.Color(c),
+    );
+
+    // Flattened QR colors
+    const flatBlossomDark = new THREE.Color(palette.qrDark || "#d64f64");
+    const flatGardenDark = new THREE.Color(palette.finderDark || "#529134");
+    const flatLight = new THREE.Color(palette.qrLight || "#f4efe6");
+
+    // Center zone radius threshold (tree footprint)
+    const centerRadius = Math.max(3, Math.floor(grid.size * 0.32));
+
     for (let r = 0; r < total; r++) {
       for (let c = 0; c < total; c++) {
         const x = c - half;
         const z = r - half;
+        const distFromCenter = Math.hypot(x, z);
         const isDark = grid.data[r * total + c] === 1;
-        const base = grassPool[pickIndex(rng, grassPool.length)].clone();
-        // organic quilting so the meadow reads as handcrafted, not a barcode
-        const quilt = (r + c) % 2 === 0 ? 0.012 : -0.02;
-        base.offsetHSL(0, 0, quilt + (rng() - 0.5) * 0.045);
+
+        // 3D Tree Mode Tile Appearance:
+        // Central area is stone pavement; outer ring blends into lush grass tiles
+        let base: THREE.Color;
+        if (distFromCenter < half - 1.8) {
+          base = stonePool[pickIndex(rng, stonePool.length)].clone();
+          const checker = (r + c) % 2 === 0 ? 0.015 : -0.015;
+          base.offsetHSL(0, 0, checker + (rng() - 0.5) * 0.02);
+        } else {
+          base = grassPool[pickIndex(rng, grassPool.length)].clone();
+          base.offsetHSL(0, 0, (rng() - 0.5) * 0.04);
+        }
+
+        // Flattened QR Mode Color Assignment:
+        // Central modules turn blossom rose; outer data modules turn grass green
+        let flatColor: THREE.Color;
+        if (isDark) {
+          flatColor = distFromCenter <= centerRadius ? flatBlossomDark : flatGardenDark;
+        } else {
+          flatColor = flatLight;
+        }
+
         arr.push({
           x,
           z,
-          h: 0.5 + rng() * 0.16,
-          delay: (Math.hypot(x, z) / Math.max(1, half * 1.42)) * 0.55,
+          h: 0.28 + (distFromCenter > half - 2 ? rng() * 0.12 : 0),
+          delay: (distFromCenter / Math.max(1, half * 1.42)) * 0.55,
           base,
-          flat: isDark ? flatDark : flatLight,
+          flat: flatColor,
         });
       }
     }
@@ -90,24 +131,27 @@ export default function Ground({
     const s = st.current;
     const dt = Math.min(rawDt, 0.05);
     s.intro = Math.min(1, s.intro + dt * 0.85);
-    const p = morph.p;
+    const p = morph?.p ?? 0;
     if (!s.dirty && Math.abs(p - s.lastP) < 0.0004 && s.intro >= 1) return;
     s.dirty = false;
     s.lastP = p;
     const m = mesh.current;
     if (!m) return;
     const q = smooth01(p);
+
     for (let i = 0; i < tiles.length; i++) {
       const t = tiles[i];
       const grow = easeOutBack((s.intro * 1.55 - t.delay) / 0.55);
       const organic = t.h * grow;
       const sy = Math.max(0.02, organic * (1 - q) + 0.14 * q);
-      const sxz = 0.94 * clamp01(grow * 1.4 + q * 2);
+      const sxz = 0.96 * clamp01(grow * 1.4 + q * 2);
+
       tmp.position.set(t.x, sy / 2, t.z);
       tmp.scale.set(sxz, sy, sxz);
       tmp.rotation.set(0, 0, 0);
       tmp.updateMatrix();
       m.setMatrixAt(i, tmp.matrix);
+
       col.copy(t.base).lerp(t.flat, q);
       m.setColorAt(i, col);
     }
@@ -124,16 +168,15 @@ export default function Ground({
         frustumCulled={false}
         castShadow
         receiveShadow
-        dispose={null}
       />
-      {/* diorama base plate */}
+      {/* Diorama base border */}
       <mesh
         geometry={geo}
         position={[0, -0.42, 0]}
-        scale={[total + 2.6, 0.85, total + 2.6]}
+        scale={[total + 2.2, 0.82, total + 2.2]}
         receiveShadow
       >
-        <meshStandardMaterial color={palette.soil} roughness={0.95} />
+        <meshStandardMaterial color={palette.soil || "#cfc8bc"} roughness={0.95} />
       </mesh>
     </group>
   );
