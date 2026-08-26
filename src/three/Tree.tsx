@@ -57,30 +57,38 @@ interface TreeSceneData {
 
 const FLAT_TILE_TOP = 0.14;
 
-// Curated Studio-Grade Sakura Blossom Palette
-const BLOSSOM_PALETTE = [
-  "#ffb6c9", // Fresh open blossom
-  "#ffa2bb", // Mid-tone core pink
-  "#ffc8d7", // Sunlit highlight petal
+// Professional Stylized Sakura Blossom Tones
+const SAKURA_PALETTE = [
+  "#ffb6c9", // Soft open blossom
+  "#ffa2bb", // Core blossom pink
+  "#ffc8d7", // Sunlit highlight
   "#f78aa5", // Inner shadow rose
-  "#ffe8ef", // Translucent petal tip
-  "#ff95af", // Saturated bloom center
+  "#ffe8ef", // Translucent tip
+  "#ff95af", // Vibrant center
 ];
 
-const WOOD_PALETTE = ["#432d22", "#382319", "#4e3528", "#2c1a11"];
+// Rich multi-tone bark colors with natural light/shadow depth
+const BARK_PALETTE = [
+  "#3b2318", // Deep bark crevice
+  "#4d3224", // Mid wood tone
+  "#5c3e2e", // Highlight bark
+  "#2c1910", // Basal trunk shadow
+  "#684735", // Exposed bough highlight
+];
+
 const MEADOW_GRASS = ["#7eb844", "#8ec751", "#6fa338", "#9cd15e"];
 const ACCENT_REEDS = ["#d77ea1", "#e898b7", "#c2698e"];
 
 const UP = new THREE.Vector3(0, 1, 0);
 
 /**
- * Creates a smoothly connected wooden segment between two 3D points
- * with accurate orientation and radial scale.
+ * Connects two 3D vector points with a continuous, tapered wooden segment
  */
 function createSegment(
   p1: THREE.Vector3,
   p2: THREE.Vector3,
-  radius: number,
+  r1: number,
+  r2: number,
   colorIdx: number,
   u: number
 ): OrientedSegment {
@@ -94,20 +102,22 @@ function createSegment(
     quat.setFromUnitVectors(UP, normDir);
   }
 
+  const avgRadius = (r1 + r2) * 0.5;
+
   return {
     x: mid.x,
     y: mid.y,
     z: mid.z,
-    sx: radius * 2,
-    sy: len,
-    sz: radius * 2,
+    sx: avgRadius * 2,
+    sy: len * 1.05, // 5% overlap to ensure seamless joints between child nodes
+    sz: avgRadius * 2,
     quat,
     c: colorIdx,
     u,
   };
 }
 
-function generateArtisanSakura(
+function generateBotanicalSakura(
   seed: number,
   grid: QRGrid,
   zone: ForestZone
@@ -129,120 +139,128 @@ function generateArtisanSakura(
   const gridScale = Math.max(1.0, grid.size / 21);
   const scaleMultiplier = Math.max(lengthScale, gridScale);
 
-  const H = 9.4 * scaleMultiplier;
-  const baseRadius = 1.35 * Math.min(1.7, Math.pow(scaleMultiplier, 0.72));
+  const H = 9.8 * scaleMultiplier;
+  const baseTrunkRadius = 1.35 * Math.min(1.7, Math.pow(scaleMultiplier, 0.72));
 
-  // 1. Organic Root Buttresses (Base Flaring)
-  const rootCount = 5;
+  // 1. Structural Root Flares (Anchor into the patio tiles)
+  const rootCount = 6;
   for (let i = 0; i < rootCount; i++) {
-    const rootAngle = (i / rootCount) * Math.PI * 2 + (rng() - 0.5) * 0.4;
-    const spread = baseRadius * (1.6 + rng() * 0.4);
+    const rootAngle = (i / rootCount) * Math.PI * 2 + (rng() - 0.5) * 0.35;
+    const spread = baseTrunkRadius * (1.5 + rng() * 0.45);
     const p1 = new THREE.Vector3(
       Math.cos(rootAngle) * spread,
-      FLAT_TILE_TOP + 0.04,
+      FLAT_TILE_TOP + 0.02,
       Math.sin(rootAngle) * spread
     );
     const p2 = new THREE.Vector3(
-      Math.cos(rootAngle) * (baseRadius * 0.8),
-      H * 0.12,
-      Math.sin(rootAngle) * (baseRadius * 0.8)
+      Math.cos(rootAngle) * (baseTrunkRadius * 0.75),
+      H * 0.1,
+      Math.sin(rootAngle) * (baseTrunkRadius * 0.75)
     );
     data.woodSegments.push(
-      createSegment(p1, p2, baseRadius * 0.42, pickIndex(rng, WOOD_PALETTE.length), rng())
+      createSegment(p1, p2, baseTrunkRadius * 0.45, baseTrunkRadius * 0.3, 3, rng())
     );
   }
 
-  // 2. Smooth Spline Curved Trunk
-  const trunkSteps = Math.floor(14 * scaleMultiplier);
-  const trunkPoints: { pos: THREE.Vector3; radius: number }[] = [];
-  let currX = 0;
-  let currZ = 0;
+  // 2. Continuous Spline Trunk with Gravitational S-Curve
+  const trunkSegments = Math.floor(16 * scaleMultiplier);
+  const trunkSpline: { pos: THREE.Vector3; radius: number }[] = [];
   const sCurveAngle = rng() * Math.PI * 2;
-  const sCurveStrength = 0.28;
+  const sCurvePower = 0.32;
 
-  for (let i = 0; i <= trunkSteps; i++) {
-    const t = i / trunkSteps;
-    const y = t * (H * 0.72);
-    currX = Math.cos(sCurveAngle) * Math.sin(t * Math.PI * 0.9) * sCurveStrength * baseRadius;
-    currZ = Math.sin(sCurveAngle) * Math.sin(t * Math.PI * 0.9) * sCurveStrength * baseRadius;
-    const r = THREE.MathUtils.lerp(baseRadius, baseRadius * 0.26, Math.pow(t, 0.75));
+  for (let i = 0; i <= trunkSegments; i++) {
+    const t = i / trunkSegments;
+    const y = t * (H * 0.74);
+    // Double inflection S-bend
+    const bend = Math.sin(t * Math.PI * 1.1) * sCurvePower * baseTrunkRadius;
+    const cx = Math.cos(sCurveAngle) * bend;
+    const cz = Math.sin(sCurveAngle) * bend;
+    const r = THREE.MathUtils.lerp(baseTrunkRadius, baseTrunkRadius * 0.22, Math.pow(t, 0.78));
 
-    trunkPoints.push({
-      pos: new THREE.Vector3(currX, y + FLAT_TILE_TOP, currZ),
+    trunkSpline.push({
+      pos: new THREE.Vector3(cx, y + FLAT_TILE_TOP, cz),
       radius: r,
     });
   }
 
-  for (let i = 0; i < trunkPoints.length - 1; i++) {
-    const p1 = trunkPoints[i].pos;
-    const p2 = trunkPoints[i + 1].pos;
-    const r = (trunkPoints[i].radius + trunkPoints[i + 1].radius) * 0.5;
+  // Render trunk column segments
+  for (let i = 0; i < trunkSpline.length - 1; i++) {
+    const p1 = trunkSpline[i].pos;
+    const p2 = trunkSpline[i + 1].pos;
+    const r1 = trunkSpline[i].radius;
+    const r2 = trunkSpline[i + 1].radius;
     data.woodSegments.push(
-      createSegment(p1, p2, r, i % 2 === 0 ? 0 : 1, rng())
+      createSegment(p1, p2, r1, r2, i % 2 === 0 ? 0 : 1, rng())
     );
   }
 
-  // 3. Multi-Tiered Golden-Angle Branch Network
+  // 3. Multi-Tier Recursive Branching (Boughs -> Scaffolding -> Terminal Twigs)
   const GOLDEN_ANGLE = 2.399963;
-  const primaryBoughCount = Math.floor(10 + scaleMultiplier * 5);
-  const boughStartIdx = Math.floor(trunkSteps * 0.35);
-  const branchEndpoints: THREE.Vector3[] = [];
+  const primaryBoughCount = Math.floor(11 + scaleMultiplier * 5);
+  const boughStartIdx = Math.floor(trunkSegments * 0.32);
+  const twigEndpoints: THREE.Vector3[] = [];
 
   for (let i = 0; i < primaryBoughCount; i++) {
     const tProgress = i / primaryBoughCount;
     const attachIdx = Math.min(
-      trunkSteps - 1,
-      boughStartIdx + Math.floor(tProgress * (trunkSteps - boughStartIdx))
+      trunkSegments - 1,
+      boughStartIdx + Math.floor(tProgress * (trunkSegments - boughStartIdx))
     );
-    const attachPoint = trunkPoints[attachIdx];
+    const attachPoint = trunkSpline[attachIdx];
 
-    const angle = i * GOLDEN_ANGLE + (rng() - 0.5) * 0.35;
-    const isTopApex = tProgress > 0.65;
-    const boughLength = ((isTopApex ? 2.6 : 4.2) + rng() * (zone.n * 0.36)) * scaleMultiplier;
-    const elevation = isTopApex ? 0.65 + rng() * 0.3 : 0.32 + rng() * 0.28;
-    const steps = Math.ceil(boughLength * 2.8);
+    const angle = i * GOLDEN_ANGLE + (rng() - 0.5) * 0.3;
+    const isTopCrownLeader = tProgress > 0.62;
+    const boughLength = ((isTopCrownLeader ? 2.6 : 4.4) + rng() * (zone.n * 0.36)) * scaleMultiplier;
+    const elevation = isTopCrownLeader ? 0.68 + rng() * 0.28 : 0.3 + rng() * 0.25;
+    const steps = Math.ceil(boughLength * 3.2);
 
     const dirX = Math.cos(angle);
     const dirZ = Math.sin(angle);
     const inv = 1 / (Math.hypot(dirX, elevation, dirZ) || 1);
 
-    let start = attachPoint.pos.clone();
-    let parentRadius = attachPoint.radius * 0.55;
+    let currStart = attachPoint.pos.clone();
+    let currentRadius = attachPoint.radius * 0.58;
 
     for (let s = 0; s < steps; s++) {
       const stepT = s / steps;
-      const stepLen = 0.42;
-      const end = new THREE.Vector3(
-        start.x + (dirX + (rng() - 0.5) * 0.12) * inv * stepLen,
-        start.y + (elevation + (rng() - 0.5) * 0.08) * inv * stepLen,
-        start.z + (dirZ + (rng() - 0.5) * 0.12) * inv * stepLen
+      const stepLen = 0.38;
+      // Natural droop/rise curvature
+      const gravitySag = Math.sin(stepT * Math.PI) * -0.06;
+      const currElevation = elevation + gravitySag;
+
+      const nextEnd = new THREE.Vector3(
+        currStart.x + (dirX + (rng() - 0.5) * 0.1) * inv * stepLen,
+        currStart.y + (currElevation + (rng() - 0.5) * 0.08) * inv * stepLen,
+        currStart.z + (dirZ + (rng() - 0.5) * 0.1) * inv * stepLen
       );
 
-      const r = Math.max(0.1, parentRadius * (1 - stepT * 0.68));
+      const nextRadius = Math.max(0.08, currentRadius * (1 - stepT * 0.65));
       data.woodSegments.push(
-        createSegment(start, end, r, pickIndex(rng, WOOD_PALETTE.length), rng())
+        createSegment(currStart, nextEnd, currentRadius, nextRadius, pickIndex(rng, BARK_PALETTE.length), rng())
       );
 
-      // Tertiary twigs branching upward into foliage
-      if (s > 2 && s % 2 === 0 && rng() < 0.72) {
-        const twigAngle = angle + (rng() > 0.5 ? 0.65 : -0.65) + (rng() - 0.5) * 0.2;
+      // Secondary and tertiary twigs branching upward into blossom canopy
+      if (s > 2 && s % 2 === 0 && rng() < 0.76) {
+        const twigAngle = angle + (rng() > 0.5 ? 0.68 : -0.68) + (rng() - 0.5) * 0.2;
+        const twigLen = (0.5 + rng() * 0.4) * scaleMultiplier;
         const twigEnd = new THREE.Vector3(
-          end.x + Math.cos(twigAngle) * 0.45 * scaleMultiplier,
-          end.y + (0.35 + rng() * 0.25) * scaleMultiplier,
-          end.z + Math.sin(twigAngle) * 0.45 * scaleMultiplier
+          nextEnd.x + Math.cos(twigAngle) * twigLen,
+          nextEnd.y + (0.35 + rng() * 0.3) * scaleMultiplier,
+          nextEnd.z + Math.sin(twigAngle) * twigLen
         );
         data.woodSegments.push(
-          createSegment(end, twigEnd, 0.08 * scaleMultiplier, 1, rng())
+          createSegment(nextEnd, twigEnd, nextRadius * 0.7, 0.06, 2, rng())
         );
-        branchEndpoints.push(twigEnd);
+        twigEndpoints.push(twigEnd);
       }
 
-      start = end;
+      currStart = nextEnd;
+      currentRadius = nextRadius;
     }
-    branchEndpoints.push(start);
+    twigEndpoints.push(currStart);
   }
 
-  // 4. Volumetric Blossom Foliage Lobes
+  // 4. Volumetric Sakura Blossom Canopy (Clustered around 6 natural cloud lobes)
   const crownBaseY = H * 0.68;
   const crownRadius = Math.max(1.6, zone.n * 0.78 * scaleMultiplier);
 
@@ -283,7 +301,7 @@ function generateArtisanSakura(
       os: (isWeeping ? 0.95 + rng() * 0.45 : 1.35 + rng() * 0.85) * Math.min(1.4, scaleMultiplier),
       fx: mx,
       fz: mz,
-      ci: pickIndex(rng, BLOSSOM_PALETTE.length),
+      ci: pickIndex(rng, SAKURA_PALETTE.length),
       pale,
       rotX: (rng() - 0.5) * 0.9,
       rotY: rng() * Math.PI * 2,
@@ -334,7 +352,7 @@ function generateArtisanSakura(
       sy: 0.02,
       sz: 0.28 + rng() * 0.2,
       ry: rng() * Math.PI * 2,
-      c: pickIndex(rng, BLOSSOM_PALETTE.length),
+      c: pickIndex(rng, SAKURA_PALETTE.length),
       u: rng(),
     });
   }
@@ -388,9 +406,6 @@ function generateArtisanSakura(
 const tmp = new THREE.Object3D();
 const col = new THREE.Color();
 
-/**
- * Renders smoothly oriented branch and trunk segments with quaternion rotation
- */
 function OrientedWoodMesh({
   items,
   colors,
@@ -600,19 +615,19 @@ export default function Tree({
     intro.current = 0;
   }, [seed]);
 
-  // High-poly smooth cylinder for oriented branches
-  const branchSegmentGeo = useMemo(() => new THREE.CylinderGeometry(0.5, 0.5, 1, 14), []);
+  // Smooth cylinders with 16 radial facets for wood limbs
+  const branchSegmentGeo = useMemo(() => new THREE.CylinderGeometry(0.5, 0.5, 1, 16), []);
   const blossomClusterGeo = useMemo(() => new THREE.DodecahedronGeometry(0.68, 0), []);
   const petalDiscGeo = useMemo(() => new THREE.CylinderGeometry(0.52, 0.52, 0.08, 6), []);
   const bladeGeo = useMemo(() => new THREE.ConeGeometry(0.1, 1, 4), []);
 
   const data = useMemo(
-    () => generateArtisanSakura(seed, grid, zone),
+    () => generateBotanicalSakura(seed, grid, zone),
     [seed, grid, zone]
   );
 
   const canopyColors = useMemo(
-    () => BLOSSOM_PALETTE.map((c) => new THREE.Color(c)),
+    () => SAKURA_PALETTE.map((c) => new THREE.Color(c)),
     []
   );
   const qrDark = useMemo(() => new THREE.Color(palette?.qrDark || "#d64f64"), [palette]);
@@ -633,17 +648,17 @@ export default function Tree({
   return (
     <>
       <group ref={group}>
-        {/* Connected Organic Trunk, Buttress Roots & Branch System */}
+        {/* Continuous Botanically Accurate Trunk, Buttress Roots & Branch System */}
         <OrientedWoodMesh
           items={data.woodSegments}
-          colors={WOOD_PALETTE}
+          colors={BARK_PALETTE}
           geometry={branchSegmentGeo}
-          roughness={0.9}
+          roughness={0.92}
         />
         {/* Ground Drift Petals */}
         <InstancedBatch
           items={data.fallenPetals}
-          colors={BLOSSOM_PALETTE}
+          colors={SAKURA_PALETTE}
           geometry={petalDiscGeo}
           roughness={0.6}
         />
