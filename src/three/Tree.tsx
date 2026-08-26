@@ -57,14 +57,16 @@ interface TreeSceneData {
 
 const FLAT_TILE_TOP = 0.14;
 
-// Realistic, painterly sakura flower tones with shadows and highlights
+// High-fidelity sakura floral & leaf palette (petals, bud highlights, inner shadows, and fresh leaf accents)
 const SAKURA_PALETTE = [
   "#fba3ba", // Soft open petal
-  "#f389a4", // Vibrant core bloom pink
-  "#fcc4d3", // Sunlit highlight petal
+  "#f389a4", // Core bloom pink
+  "#fcc4d3", // Highlight petal
   "#e87291", // Deeper canopy shadow
-  "#fee6ed", // White-pink blossom tip
+  "#fee6ed", // Translucent tip
   "#f2809e", // Mid-tone flower
+  "#ffd3df", // Light floral petal
+  "#8cb86d", // Fresh spring leaf bud accent
 ];
 
 const BARK_PALETTE = [
@@ -113,7 +115,7 @@ function createSegment(
   };
 }
 
-function generateBotanicalSakura(
+function generateLushBotanicalSakura(
   seed: number,
   grid: QRGrid,
   zone: ForestZone
@@ -129,13 +131,13 @@ function generateBotanicalSakura(
 
   const half = (grid.total - 1) / 2;
 
-  // Fixed structural dimensions so the wooden skeleton stays solid and elegant
+  // Fixed structural dimensions so the wooden skeleton stays solid and natural
   const H = 9.8;
   const baseTrunkRadius = 1.35;
 
-  // URL length directly drives flower and leaf volume (blooming density)
+  // URL length increases floral blooming density
   const textLength = grid.text ? grid.text.length : 16;
-  const leafDensityFactor = Math.min(2.8, Math.max(1.0, 1.0 + (textLength - 16) * 0.035));
+  const leafDensityFactor = Math.min(3.2, Math.max(1.0, 1.0 + (textLength - 16) * 0.04));
 
   // 1. Root Buttresses
   const rootCount = 6;
@@ -187,7 +189,7 @@ function generateBotanicalSakura(
     );
   }
 
-  // 3. Stable Branch Network (Fixed branch counts; leaf coverage is selective)
+  // 3. Natural Branch Framework & Foliage Node Sites
   const GOLDEN_ANGLE = 2.399963;
   const primaryBoughCount = 11;
   const boughStartIdx = Math.floor(trunkSegments * 0.32);
@@ -214,8 +216,8 @@ function generateBotanicalSakura(
     let currStart = attachPoint.pos.clone();
     let currentRadius = attachPoint.radius * 0.56;
 
-    // Determine if this entire bough is a "bare wood branch" (approx 20% remain naturally bare)
-    const isBareBranch = rng() < 0.2;
+    // ~15% of branches stay natural bare wood
+    const isBareBranch = rng() < 0.15;
 
     for (let s = 0; s < steps; s++) {
       const stepT = s / steps;
@@ -234,16 +236,16 @@ function generateBotanicalSakura(
         createSegment(currStart, nextEnd, currentRadius, nextRadius, pickIndex(rng, BARK_PALETTE.length), rng())
       );
 
-      // Collect foliage candidate sites along outer sections of non-bare branches
-      if (!isBareBranch && s >= Math.floor(steps * 0.4)) {
+      // Collect foliage candidate sites along outer 65% of the bough
+      if (!isBareBranch && s >= Math.floor(steps * 0.35)) {
         potentialFlowerSites.push({
           pos: nextEnd.clone(),
-          weight: stepT, // Outer tips carry higher bloom probability
+          weight: Math.max(0.4, stepT),
         });
       }
 
       // Secondary and tertiary twigs
-      if (s > 2 && s % 2 === 0 && rng() < 0.78) {
+      if (s > 2 && s % 2 === 0 && rng() < 0.82) {
         const twigAngle = angle + (rng() > 0.5 ? 0.68 : -0.68) + (rng() - 0.5) * 0.2;
         const twigLen = 0.5 + rng() * 0.4;
         const twigEnd = new THREE.Vector3(
@@ -255,7 +257,7 @@ function generateBotanicalSakura(
           createSegment(nextEnd, twigEnd, nextRadius * 0.7, 0.06, 2, rng())
         );
 
-        if (!isBareBranch && rng() < 0.85) {
+        if (!isBareBranch) {
           potentialFlowerSites.push({
             pos: twigEnd.clone(),
             weight: 1.0,
@@ -275,7 +277,7 @@ function generateBotanicalSakura(
     }
   }
 
-  // 4. Natural Blossom & Leaf Cluster Generation
+  // 4. Natural Blossom & Leaf Cluster Generator
   const pushBlossomCluster = (
     mx: number,
     mz: number,
@@ -288,9 +290,9 @@ function generateBotanicalSakura(
     let oz = 0;
 
     if (anchorPos) {
-      ox = anchorPos.x + (rng() - 0.5) * 0.25;
-      oy = anchorPos.y + (rng() - 0.5) * 0.22;
-      oz = anchorPos.z + (rng() - 0.5) * 0.25;
+      ox = anchorPos.x + (rng() - 0.5) * 0.26;
+      oy = anchorPos.y + (rng() - 0.5) * 0.24;
+      oz = anchorPos.z + (rng() - 0.5) * 0.26;
     } else {
       let nearestDist = 999;
       let target = potentialFlowerSites[0]?.pos || new THREE.Vector3(0, H * 0.7, 0);
@@ -308,8 +310,8 @@ function generateBotanicalSakura(
       oz = mz * 0.95 + (rng() - 0.5) * 0.35;
     }
 
-    // Keep individual blossom cluster sizes moderate and crisp (0.45 - 0.7) to prevent puffy solid mass
-    const clusterScale = customSize || 0.52 + rng() * 0.22;
+    // Keep individual cluster floret size compact (0.46 - 0.68) for crisp natural definition
+    const clusterScale = customSize || (0.46 + rng() * 0.22);
 
     data.canopy.push({
       ox,
@@ -327,7 +329,7 @@ function generateBotanicalSakura(
     });
   };
 
-  // 4a. QR Code Data Modules mapped to canopy
+  // 4a. QR Code Data Modules
   let qrModuleCount = 0;
   for (let r = 0; r < zone.n; r++) {
     for (let c = 0; c < zone.n; c++) {
@@ -340,37 +342,38 @@ function generateBotanicalSakura(
     }
   }
 
-  // 4b. Fill the Branch Nodes (URL length scales flower volume without adding wood)
-  const baseFillRate = 0.55 * leafDensityFactor;
+  // 4b. Fill the Branch Nodes with Organic Floret Clusters
+  const baseFillRate = 0.85 * leafDensityFactor;
   for (const site of potentialFlowerSites) {
-    // Only bloom if this site meets the weight threshold
     if (rng() < baseFillRate * site.weight) {
+      // Primary flower cluster at node
       pushBlossomCluster(site.pos.x, site.pos.z, true, site.pos);
 
-      // Additional secondary floret when URL grows longer
-      if (leafDensityFactor > 1.2 && rng() < 0.45 * (leafDensityFactor - 1.0)) {
+      // Clustered secondary florets for richer foliage layering
+      const extraFlorets = 1 + (leafDensityFactor > 1.2 ? Math.floor(rng() * 2) : 0);
+      for (let k = 0; k < extraFlorets; k++) {
         const offset = site.pos.clone().add(
-          new THREE.Vector3((rng() - 0.5) * 0.24, (rng() - 0.5) * 0.2, (rng() - 0.5) * 0.24)
+          new THREE.Vector3((rng() - 0.5) * 0.32, (rng() - 0.5) * 0.28, (rng() - 0.5) * 0.32)
         );
         pushBlossomCluster(offset.x, offset.z, true, offset, 0.42 + rng() * 0.18);
       }
     }
   }
 
-  // 4c. Selective Weeping Hanging Tendrils (Lightly scattered on outer lower branch tips)
-  const droopCount = Math.floor(14 * leafDensityFactor);
+  // 4c. Weeping Hanging Blossom & Leaf Tendrils
+  const droopCount = Math.floor(22 * leafDensityFactor);
   const crownRadius = Math.max(1.6, zone.n * 0.74);
   for (let i = 0; i < droopCount; i++) {
     const angle = (i / droopCount) * Math.PI * 2 + (rng() - 0.5) * 0.3;
-    const rad = crownRadius * (0.65 + rng() * 0.25);
+    const rad = crownRadius * (0.62 + rng() * 0.28);
     const mx = Math.cos(angle) * rad;
     const mz = Math.sin(angle) * rad;
-    const dropPos = new THREE.Vector3(mx, H * 0.54 + rng() * 1.8, mz);
-    pushBlossomCluster(mx, mz, true, dropPos, 0.48 + rng() * 0.2);
+    const dropPos = new THREE.Vector3(mx, H * 0.52 + rng() * 1.9, mz);
+    pushBlossomCluster(mx, mz, true, dropPos, 0.44 + rng() * 0.2);
   }
 
   // 5. Ground Fallen Petals
-  const petalCount = Math.floor(60 * leafDensityFactor);
+  const petalCount = Math.floor(75 * leafDensityFactor);
   for (let i = 0; i < petalCount; i++) {
     const angle = rng() * Math.PI * 2;
     const rad = 0.5 + Math.sqrt(rng()) * (half - 1.0);
@@ -646,13 +649,13 @@ export default function Tree({
   }, [seed]);
 
   const branchSegmentGeo = useMemo(() => new THREE.CylinderGeometry(0.5, 0.5, 1, 16), []);
-  // Compact 12-sided dodecahedron for defined floret clusters (radius 0.44)
+  // Compact 12-sided dodecahedron geometry for defined, non-cotton-candy florets
   const blossomClusterGeo = useMemo(() => new THREE.DodecahedronGeometry(0.44, 0), []);
   const petalDiscGeo = useMemo(() => new THREE.CylinderGeometry(0.52, 0.52, 0.08, 6), []);
   const bladeGeo = useMemo(() => new THREE.ConeGeometry(0.1, 1, 4), []);
 
   const data = useMemo(
-    () => generateBotanicalSakura(seed, grid, zone),
+    () => generateLushBotanicalSakura(seed, grid, zone),
     [seed, grid, zone]
   );
 
@@ -678,7 +681,7 @@ export default function Tree({
   return (
     <>
       <group ref={group}>
-        {/* Continuous Botanically Accurate Trunk, Buttress Roots & Branch Network */}
+        {/* Continuous Botanically Accurate Trunk, Buttress Roots & Branch Skeleton */}
         <OrientedWoodMesh
           items={data.woodSegments}
           colors={BARK_PALETTE}
@@ -708,7 +711,7 @@ export default function Tree({
         />
       </group>
 
-      {/* Crisp, Balanced Blossom Clusters with Visible Wood Silhouettes */}
+      {/* Richly Layered Blossom & Leaf Clusters with Discrete Florets */}
       <CanopyMorphMesh
         items={data.canopy}
         colors={canopyColors}
