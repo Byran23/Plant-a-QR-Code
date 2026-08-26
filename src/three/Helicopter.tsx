@@ -3,7 +3,6 @@ import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { morph, smooth01, clamp01, easeOutBack } from "./shared";
 
-// High-resolution canvas texture for the trailing banner
 function createBannerTexture(text: string) {
   const canvas = document.createElement("canvas");
   canvas.width = 1400;
@@ -11,7 +10,6 @@ function createBannerTexture(text: string) {
   const ctx = canvas.getContext("2d");
 
   if (ctx) {
-    // Banner background gradient
     const grad = ctx.createLinearGradient(0, 0, 1400, 0);
     grad.addColorStop(0, "#ffffff");
     grad.addColorStop(0.5, "#fff1f2");
@@ -19,7 +17,6 @@ function createBannerTexture(text: string) {
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, 1400, 256);
 
-    // Decorative borders
     ctx.fillStyle = "#e11d48";
     ctx.fillRect(0, 0, 1400, 18);
     ctx.fillRect(0, 238, 1400, 18);
@@ -28,16 +25,13 @@ function createBannerTexture(text: string) {
     ctx.fillRect(0, 18, 1400, 8);
     ctx.fillRect(0, 230, 1400, 8);
 
-    // Bold text styling
     ctx.font = "bold 84px 'Segoe UI', Roboto, sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
 
-    // Text drop shadow
     ctx.fillStyle = "rgba(159, 18, 57, 0.25)";
     ctx.fillText(text, 704, 134);
 
-    // Main text
     ctx.fillStyle = "#9f1239";
     ctx.fillText(text, 700, 130);
   }
@@ -48,6 +42,8 @@ function createBannerTexture(text: string) {
   texture.needsUpdate = true;
   return texture;
 }
+
+const FORWARD_AXIS = new THREE.Vector3(0, 0, 1);
 
 export default function Helicopter({
   orbit = 16,
@@ -62,16 +58,13 @@ export default function Helicopter({
   const bannerMeshRef = useRef<THREE.Mesh>(null);
   const intro = useRef(0);
 
-  // Geometries
   const boxGeo = useMemo(() => new THREE.BoxGeometry(1, 1, 1), []);
   const sphereGeo = useMemo(() => new THREE.SphereGeometry(1, 16, 16), []);
   const cylinderGeo = useMemo(() => new THREE.CylinderGeometry(1, 1, 1, 16), []);
   const bannerGeo = useMemo(() => new THREE.PlaneGeometry(8.2, 1.5, 36, 6), []);
 
-  // Textures
   const bannerTex = useMemo(() => createBannerTexture("Bryan R. Cañaveral"), []);
 
-  // Materials
   const bodyMat = useMemo(
     () => new THREE.MeshStandardMaterial({ color: "#e11d48", roughness: 0.35 }),
     [],
@@ -167,42 +160,51 @@ export default function Helicopter({
     const grow = easeOutBack(clamp01(intro.current / 0.7));
     const scale = vis * grow;
 
-    // Flight orbit path
     const heli = heliGroup.current;
     if (heli) {
-      const flightSpeed = 0.45;
+      const flightSpeed = 0.38;
       const angle = t * flightSpeed;
-      const r = orbit * 1.15;
+      const r = orbit * 1.12;
 
+      // Position along orbital circle with altitude sway
       const x = Math.cos(angle) * r;
       const z = Math.sin(angle) * r;
-      const y = alt + Math.sin(t * 1.5) * 0.6;
+      const y = alt + Math.sin(t * 1.4) * 0.45;
 
       heli.position.set(x, y, z);
-      heli.rotation.set(
-        0.08, // Slight forward pitch
-        -angle + Math.PI / 2, // Tangent orientation
-        0.18, // Inward roll into turn
-        "YXZ",
-      );
+
+      // Tangent direction: forward vector along orbit
+      const forwardX = -Math.sin(angle);
+      const forwardZ = Math.cos(angle);
+      const tangent = new THREE.Vector3(forwardX, 0, forwardZ).normalize();
+
+      // Compute base orientation pointing forward
+      const quat = new THREE.Quaternion().setFromUnitVectors(FORWARD_AXIS, tangent);
+
+      // Aerodynamic Pitch (nose slightly downward: 6°) & Bank Roll (inward: 14°)
+      const bankEuler = new THREE.Euler(0.1, 0, 0.24, "ZYX");
+      const bankQuat = new THREE.Quaternion().setFromEuler(bankEuler);
+      quat.multiply(bankQuat);
+
+      heli.quaternion.slerp(quat, 0.15);
       heli.scale.setScalar(Math.max(0.0001, 1.15 * scale));
       heli.visible = scale > 0.02;
     }
 
-    // Spin main & tail rotors
+    // Rotor spins
     if (mainRotorRef.current) {
-      mainRotorRef.current.rotation.y += dt * 32;
+      mainRotorRef.current.rotation.y += dt * 36;
     }
     if (tailRotorRef.current) {
-      tailRotorRef.current.rotation.x += dt * 36;
+      tailRotorRef.current.rotation.x += dt * 40;
     }
 
-    // Natural wave motion for trailing banner
+    // Banner Wave Simulation
     if (bannerMeshRef.current) {
       const posAttr = bannerGeo.attributes.position;
       for (let i = 0; i < posAttr.count; i++) {
-        const u = (posAttr.getX(i) + 4.1) / 8.2; // 0 (tether) to 1 (tail)
-        const wave = Math.sin(t * 8 - u * 6.5) * (0.06 + u * 0.42);
+        const u = (posAttr.getX(i) + 4.1) / 8.2;
+        const wave = Math.sin(t * 8.5 - u * 7) * (0.05 + u * 0.45);
         posAttr.setZ(i, wave);
       }
       posAttr.needsUpdate = true;
@@ -211,7 +213,6 @@ export default function Helicopter({
 
   return (
     <group ref={heliGroup}>
-      {/* --- Helicopter Airframe --- */}
       {/* Fuselage Cabin */}
       <mesh geometry={sphereGeo} material={bodyMat} position={[0, 0, 0.4]} scale={[0.7, 0.75, 1.25]} />
 
@@ -248,13 +249,13 @@ export default function Helicopter({
         scale={[0.06, 0.65, 0.42]}
       />
 
-      {/* Tail Rotor Hub & Blades */}
+      {/* Tail Rotor */}
       <group position={[0.1, 0.45, -2.25]} ref={tailRotorRef}>
         <mesh geometry={cylinderGeo} material={metalMat} rotation={[0, 0, Math.PI / 2]} scale={[0.06, 0.12, 0.06]} />
         <mesh geometry={boxGeo} material={rotorBladeMat} scale={[0.02, 0.68, 0.08]} />
       </group>
 
-      {/* Main Rotor Mast & Hub */}
+      {/* Main Rotor Mast */}
       <mesh
         geometry={cylinderGeo}
         material={metalMat}
@@ -262,10 +263,9 @@ export default function Helicopter({
         scale={[0.08, 0.35, 0.08]}
       />
 
-      {/* Spinning Main Rotor Assembly */}
+      {/* Main Rotor Blades */}
       <group position={[0, 1.02, 0.35]} ref={mainRotorRef}>
         <mesh geometry={cylinderGeo} material={metalMat} scale={[0.22, 0.08, 0.22]} />
-        {/* Dual Cross Blades */}
         <mesh geometry={boxGeo} material={rotorBladeMat} scale={[4.2, 0.03, 0.18]} />
         <mesh
           geometry={boxGeo}
@@ -277,7 +277,6 @@ export default function Helicopter({
 
       {/* Landing Skids */}
       <group position={[0, -0.65, 0.35]}>
-        {/* Left Skid */}
         <mesh
           geometry={cylinderGeo}
           material={metalMat}
@@ -285,7 +284,6 @@ export default function Helicopter({
           rotation={[Math.PI / 2, 0, 0]}
           scale={[0.045, 2.0, 0.045]}
         />
-        {/* Right Skid */}
         <mesh
           geometry={cylinderGeo}
           material={metalMat}
@@ -293,16 +291,14 @@ export default function Helicopter({
           rotation={[Math.PI / 2, 0, 0]}
           scale={[0.045, 2.0, 0.045]}
         />
-        {/* Struts */}
         <mesh geometry={cylinderGeo} material={metalMat} position={[-0.32, 0.25, 0.4]} scale={[0.035, 0.45, 0.035]} />
         <mesh geometry={cylinderGeo} material={metalMat} position={[0.32, 0.25, 0.4]} scale={[0.035, 0.45, 0.035]} />
         <mesh geometry={cylinderGeo} material={metalMat} position={[-0.32, 0.25, -0.4]} scale={[0.035, 0.45, 0.035]} />
         <mesh geometry={cylinderGeo} material={metalMat} position={[0.32, 0.25, -0.4]} scale={[0.035, 0.45, 0.035]} />
       </group>
 
-      {/* --- Trailing Tow Line & Banner --- */}
+      {/* Tow Lines & Trailing Banner */}
       <group position={[0, -0.2, -2.25]}>
-        {/* Upper & Lower Tow Cables */}
         <mesh
           geometry={cylinderGeo}
           material={ropeMat}
@@ -318,7 +314,6 @@ export default function Helicopter({
           scale={[0.02, 1.6, 0.02]}
         />
 
-        {/* Trailing Banner Mesh */}
         <mesh
           ref={bannerMeshRef}
           geometry={bannerGeo}
