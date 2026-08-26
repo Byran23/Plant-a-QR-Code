@@ -1,0 +1,87 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Fraunces", ui-serif, Georgia, serif;
+  --font-sans: "Outfit", ui-sans-serif, system-ui, sans-serif;
+  --color-ink: #17211a;
+  --color-cream: #f7f4ec;
+  --color-moss: #175c33;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  overflow: hidden;
+  font-family: var(--font-sans);
+  color: var(--color-ink);
+  background: #dfeef5;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: #17211a;
+  color: #f7f4ec;
+}
+
+/* Big outlined word sitting behind the scene */
+.watermark {
+  color: transparent;
+  -webkit-text-stroke: 2px rgba(23, 33, 26, 0.1);
+}
+
+@media (max-width: 640px) {
+  .watermark {
+    -webkit-text-stroke: 1.2px rgba(23, 33, 26, 0.1);
+  }
+}
+
+/* Film-grain overlay */
+.noise {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  opacity: 0.06;
+  mix-blend-mode: overlay;
+}
+
+/* Round native colour pickers */
+input[type="color"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 9999px;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  box-shadow:
+    0 1px 3px rgba(23, 33, 26, 0.25),
+    inset 0 0 0 1px rgba(23, 33, 26, 0.12);
+  padding: 0;
+  background: none;
+  cursor: pointer;
+  transition: transform 150ms ease;
+}
+input[type="color"]:hover {
+  transform: scale(1.12);
+}
+input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+input[type="color"]::-webkit-color-swatch {
+  border: none;
+  border-radius: 9999px;
+}
+input[type="color"]::-moz-color-swatch {
+  border: none;
+  border-radius: 9999px;
+}
+
+.scene-grab {
+  cursor: grab;
+  touch-action: none;
+}
+.scene-grabbing {
+  cursor: grabbing;
+}
