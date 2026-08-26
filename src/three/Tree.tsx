@@ -60,7 +60,11 @@ const BRANCH_COLOR = ["#43281c"];
 const GRASS_COLORS = ["#82bf4f", "#94ce5e", "#71ab41"];
 const REED_COLORS = ["#df8db0", "#ebb0cb", "#cf779f"];
 
-function generateTallBulkySakura(seed: number, grid: QRGrid, zone: ForestZone): TreeSceneData {
+function generateDynamicSakura(
+  seed: number,
+  grid: QRGrid,
+  zone: ForestZone
+): TreeSceneData {
   const rng = mulberry32(seed);
   const data: TreeSceneData = {
     trunk: [],
@@ -73,18 +77,27 @@ function generateTallBulkySakura(seed: number, grid: QRGrid, zone: ForestZone): 
 
   const half = (grid.total - 1) / 2;
 
-  // 1. Taller & Substantially Thicker Trunk (Increased height and wider base radius)
-  const H = 10.4;
-  const numRings = 20;
-  const ringH = (H * 0.46) / numRings;
+  // Scale factors based on QR grid size and zone coverage
+  // Standard QR size is ~21-25; longer URLs push size to 29, 33, 40+
+  const sizeRatio = Math.max(1, grid.size / 21);
+  const zoneSpan = zone.n;
 
+  // Dynamic Height & Trunk Thickness
+  const H = (8.5 + (sizeRatio - 1) * 6.5);
+  const baseTrunkRadius = 1.35 * Math.pow(sizeRatio, 0.6);
+  const topTrunkRadius = 0.72 * Math.pow(sizeRatio, 0.5);
+
+  const numRings = Math.round(18 * sizeRatio);
+  const ringH = (H * 0.45) / numRings;
+
+  // 1. Trunk Segments
   for (let i = 0; i < numRings; i++) {
     const t = i / numRings;
-    const r = THREE.MathUtils.lerp(1.75, 0.88, Math.pow(t, 0.72));
+    const r = THREE.MathUtils.lerp(baseTrunkRadius, topTrunkRadius, Math.pow(t, 0.75));
     data.trunk.push({
-      x: 0,
+      x: (rng() - 0.5) * 0.06,
       y: i * ringH + ringH * 0.5,
-      z: 0,
+      z: (rng() - 0.5) * 0.06,
       sx: r * 2,
       sy: ringH * 0.96,
       sz: r * 2,
@@ -93,13 +106,14 @@ function generateTallBulkySakura(seed: number, grid: QRGrid, zone: ForestZone): 
     });
   }
 
-  // 2. Multi-tiered, Dense Branch Scaffolding
-  const numBranches = 16;
-  const branchStartY = H * 0.38;
+  // 2. Dynamic Branches (increases count and length with longer URLs)
+  const numBranches = Math.round(14 + sizeRatio * 8);
+  const branchStartY = H * 0.36;
+
   for (let i = 0; i < numBranches; i++) {
-    const angle = (i / numBranches) * Math.PI * 2 + (rng() - 0.5) * 0.4;
-    const length = 3.2 + rng() * 2.4;
-    const slope = 0.35 + rng() * 0.45;
+    const angle = (i / numBranches) * Math.PI * 2 + (rng() - 0.5) * 0.35;
+    const length = (2.6 + (zoneSpan * 0.35)) * (0.85 + rng() * 0.35);
+    const slope = 0.28 + rng() * 0.45;
     const steps = Math.ceil(length * 3.2);
 
     const dx = Math.cos(angle);
@@ -107,14 +121,14 @@ function generateTallBulkySakura(seed: number, grid: QRGrid, zone: ForestZone): 
     const inv = 1 / (Math.hypot(dx, slope, dz) || 1);
 
     let px = 0;
-    let py = branchStartY + rng() * 1.8;
+    let py = branchStartY + rng() * (H * 0.22);
     let pz = 0;
 
     for (let s = 0; s < steps; s++) {
-      px += dx * inv * 0.34;
-      py += slope * inv * 0.34;
-      pz += dz * inv * 0.34;
-      const thick = Math.max(0.18, 0.52 - (s / steps) * 0.34);
+      px += dx * inv * 0.32;
+      py += slope * inv * 0.32;
+      pz += dz * inv * 0.32;
+      const thick = Math.max(0.14, (0.42 * sizeRatio) - (s / steps) * (0.28 * sizeRatio));
       data.branches.push({
         x: px,
         y: py,
@@ -122,33 +136,34 @@ function generateTallBulkySakura(seed: number, grid: QRGrid, zone: ForestZone): 
         sx: thick,
         sy: thick * 1.25,
         sz: thick,
-        rx: (rng() - 0.5) * 0.12,
+        rx: (rng() - 0.5) * 0.15,
         ry: angle,
-        rz: (rng() - 0.5) * 0.12,
+        rz: (rng() - 0.5) * 0.15,
         c: 0,
         u: rng(),
       });
     }
   }
 
-  // 3. Voluminous, Lofty Blossom Canopy (Larger radius & elevated peak)
-  const crownBaseY = H * 0.7;
-  const crownRadius = Math.max(1, zone.n * 0.78);
+  // 3. Bulky, Expanding Blossom Canopy
+  const crownBaseY = H * 0.68;
+  const crownRadius = (zoneSpan * 0.65) * (0.95 + sizeRatio * 0.15);
 
   const pushPetalCluster = (mx: number, mz: number, pale: boolean, isDroop = false) => {
     const dist = Math.min(1, Math.hypot(mx, mz) / crownRadius);
-    // Tall, puffy crown profile
-    const domeHeight = Math.pow(Math.max(0, 1 - dist), 0.65) * 4.6;
+    const domeHeight = Math.pow(Math.max(0, 1 - dist), 0.6) * (3.8 * sizeRatio);
 
     const oy = isDroop
-      ? branchStartY + 0.3 + rng() * 1.4
-      : crownBaseY + domeHeight + (rng() - 0.5) * 1.1;
+      ? branchStartY + 0.3 + rng() * (H * 0.2)
+      : crownBaseY + domeHeight + (rng() - 0.5) * 1.2;
+
+    const leafScale = 0.95 * Math.pow(sizeRatio, 0.3);
 
     data.canopy.push({
-      ox: mx * (isDroop ? 1.08 : 0.94) + (rng() - 0.5) * 0.85,
+      ox: mx * (isDroop ? 1.08 : 0.94) + (rng() - 0.5) * 0.9,
       oy,
-      oz: mz * (isDroop ? 1.08 : 0.94) + (rng() - 0.5) * 0.85,
-      os: isDroop ? 0.85 + rng() * 0.45 : 1.15 + rng() * 0.85,
+      oz: mz * (isDroop ? 1.08 : 0.94) + (rng() - 0.5) * 0.9,
+      os: isDroop ? (0.75 + rng() * 0.4) * leafScale : (1.05 + rng() * 0.75) * leafScale,
       fx: mx,
       fz: mz,
       ci: pickIndex(rng, SAKURA_COLORS.length),
@@ -160,7 +175,7 @@ function generateTallBulkySakura(seed: number, grid: QRGrid, zone: ForestZone): 
     });
   };
 
-  // QR Code Modules mapped in tree crown
+  // QR Code Modules
   let qrModuleCount = 0;
   for (let r = 0; r < zone.n; r++) {
     for (let c = 0; c < zone.n; c++) {
@@ -173,24 +188,25 @@ function generateTallBulkySakura(seed: number, grid: QRGrid, zone: ForestZone): 
     }
   }
 
-  // Extra voluminous blossom puffs for high foliage density
-  const fillers = Math.ceil(qrModuleCount * 3.4);
+  // Extra voluminous blossom filler leaves (multiplies as matrix grows)
+  const fillerMultiplier = 3.5 + (sizeRatio - 1) * 2.0;
+  const fillers = Math.ceil(qrModuleCount * fillerMultiplier);
   for (let i = 0; i < fillers; i++) {
     const angle = rng() * Math.PI * 2;
     const rad = Math.sqrt(rng()) * crownRadius * 0.98;
     pushPetalCluster(Math.cos(angle) * rad, Math.sin(angle) * rad, true);
   }
 
-  // Drooping hanging flower tendrils
-  const droops = 28 + Math.floor(rng() * 10);
+  // Hanging blossom tendrils around perimeter
+  const droops = Math.round(24 + sizeRatio * 16);
   for (let i = 0; i < droops; i++) {
     const angle = (i / droops) * Math.PI * 2 + (rng() - 0.5) * 0.35;
-    const rad = crownRadius * (0.68 + rng() * 0.3);
+    const rad = crownRadius * (0.65 + rng() * 0.32);
     pushPetalCluster(Math.cos(angle) * rad, Math.sin(angle) * rad, true, true);
   }
 
-  // 4. Ground Fallen Petals
-  const petalCount = 70 + Math.floor(rng() * 25);
+  // 4. Ground Petals
+  const petalCount = Math.round(60 * sizeRatio);
   for (let i = 0; i < petalCount; i++) {
     const angle = rng() * Math.PI * 2;
     const rad = 0.6 + Math.sqrt(rng()) * (half - 1.2);
@@ -207,8 +223,8 @@ function generateTallBulkySakura(seed: number, grid: QRGrid, zone: ForestZone): 
     });
   }
 
-  // 5. Perimeter Vegetation
-  const perimeterCount = 42 + Math.floor(rng() * 12);
+  // 5. Perimeter Grass Spikes
+  const perimeterCount = Math.round(40 * sizeRatio);
   for (let i = 0; i < perimeterCount; i++) {
     const angle = (i / perimeterCount) * Math.PI * 2 + (rng() - 0.5) * 0.2;
     const rad = half - 1.4 + (rng() - 0.5) * 1.2;
@@ -242,7 +258,7 @@ function generateTallBulkySakura(seed: number, grid: QRGrid, zone: ForestZone): 
         rx: (rng() - 0.5) * 0.25,
         ry: rng() * Math.PI,
         rz: (rng() - 0.5) * 0.25,
-        c: pickIndex(rng, REED_COLORS.length),
+        c: pickIndex(rng, REED_PALETTE.length),
         u: rng(),
       });
     }
@@ -421,7 +437,10 @@ export default function Tree({
   const petalDiscGeo = useMemo(() => new THREE.CylinderGeometry(0.52, 0.52, 0.12, 6), []);
   const bladeGeo = useMemo(() => new THREE.ConeGeometry(0.1, 1, 4), []);
 
-  const data = useMemo(() => generateTallBulkySakura(seed, grid, zone), [seed, grid, zone]);
+  const data = useMemo(
+    () => generateDynamicSakura(seed, grid, zone),
+    [seed, grid, zone]
+  );
 
   const canopyColors = useMemo(
     () => SAKURA_COLORS.map((c) => new THREE.Color(c)),
@@ -445,35 +464,30 @@ export default function Tree({
   return (
     <>
       <group ref={group}>
-        {/* Substantial Cylindrical Trunk */}
         <InstancedBatch
           items={data.trunk}
           colors={BARK_COLORS}
           geometry={trunkGeo}
           roughness={0.92}
         />
-        {/* Full-coverage Branch Network */}
         <InstancedBatch
           items={data.branches}
           colors={BRANCH_COLOR}
           geometry={branchGeo}
           roughness={0.9}
         />
-        {/* Fallen Ground Petals */}
         <InstancedBatch
           items={data.fallenPetals}
           colors={SAKURA_COLORS}
           geometry={petalDiscGeo}
           roughness={0.6}
         />
-        {/* Perimeter Grass Edging */}
         <InstancedBatch
           items={data.grassEdges}
           colors={GRASS_COLORS}
           geometry={bladeGeo}
           roughness={0.85}
         />
-        {/* Perimeter Pink Accent Flora */}
         <InstancedBatch
           items={data.pinkReeds}
           colors={REED_COLORS}
@@ -482,7 +496,6 @@ export default function Tree({
         />
       </group>
 
-      {/* Lofty, Bulky Blossom Canopy */}
       <CanopyMorphMesh
         items={data.canopy}
         colors={canopyColors}
