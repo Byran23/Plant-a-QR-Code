@@ -57,7 +57,7 @@ interface TreeSceneData {
 
 const FLAT_TILE_TOP = 0.14;
 
-// Default Sakura Palette tones used when palette colors are unavailable
+// Default balanced pastel tones
 const DEFAULT_SAKURA_PALETTE = [
   "#fba3ba",
   "#f389a4",
@@ -65,7 +65,6 @@ const DEFAULT_SAKURA_PALETTE = [
   "#e87291",
   "#fee6ed",
   "#f2809e",
-  "#ffd1dc",
 ];
 
 const BARK_PALETTE = [
@@ -114,11 +113,11 @@ function createSegment(
   };
 }
 
-function generateDynamicBotanicalSakura(
+function generateDynamicSakura(
   seed: number,
   grid: QRGrid,
   zone: ForestZone,
-  colorCount: number
+  colorPaletteLength: number
 ): TreeSceneData {
   const rng = mulberry32(seed);
   const data: TreeSceneData = {
@@ -131,14 +130,12 @@ function generateDynamicBotanicalSakura(
 
   const half = (grid.total - 1) / 2;
 
-  // Proportional growth based on URL length and QR matrix scale
+  // Proportional tree growth driven by URL length and grid size
   const textLength = grid.text ? grid.text.length : 16;
-  const lengthFactor = Math.min(2.2, Math.max(1.0, 1.0 + (textLength - 16) * 0.024));
-  const gridFactor = Math.max(1.0, grid.size / 21);
-  const growthScale = Math.max(lengthFactor, gridFactor);
+  const growthScale = Math.min(2.2, Math.max(1.0, 1.0 + (textLength - 16) * 0.025));
 
-  const H = 9.4 * growthScale;
-  const baseTrunkRadius = 1.35 * Math.min(1.65, Math.pow(growthScale, 0.72));
+  const H = 8.8 * growthScale;
+  const baseTrunkRadius = 1.25 * Math.min(1.6, Math.pow(growthScale, 0.65));
 
   // 1. Root Buttresses
   const rootCount = 6;
@@ -161,10 +158,10 @@ function generateDynamicBotanicalSakura(
   }
 
   // 2. Trunk Spline
-  const trunkSegments = Math.floor(16 * Math.min(1.3, growthScale));
+  const trunkSegments = Math.floor(16 * growthScale);
   const trunkSpline: { pos: THREE.Vector3; radius: number }[] = [];
   const sCurveAngle = rng() * Math.PI * 2;
-  const sCurvePower = 0.3;
+  const sCurvePower = 0.28;
 
   for (let i = 0; i <= trunkSegments; i++) {
     const t = i / trunkSegments;
@@ -190,11 +187,11 @@ function generateDynamicBotanicalSakura(
     );
   }
 
-  // 3. Branch Network with Foliage Anchor Points
+  // 3. Proportional Branches
   const GOLDEN_ANGLE = 2.399963;
-  const primaryBoughCount = Math.floor(10 + growthScale * 4);
+  const primaryBoughCount = 11;
   const boughStartIdx = Math.floor(trunkSegments * 0.32);
-  const foliageAttachmentSites: { pos: THREE.Vector3; weight: number }[] = [];
+  const potentialFlowerSites: { pos: THREE.Vector3; weight: number }[] = [];
 
   for (let i = 0; i < primaryBoughCount; i++) {
     const tProgress = i / primaryBoughCount;
@@ -206,7 +203,7 @@ function generateDynamicBotanicalSakura(
 
     const angle = i * GOLDEN_ANGLE + (rng() - 0.5) * 0.3;
     const isTopCrownLeader = tProgress > 0.62;
-    const boughLength = ((isTopCrownLeader ? 2.6 : 4.4) + rng() * (zone.n * 0.32)) * growthScale;
+    const boughLength = ((isTopCrownLeader ? 2.6 : 4.2) + rng() * (zone.n * 0.34)) * growthScale;
     const elevation = isTopCrownLeader ? 0.68 + rng() * 0.28 : 0.3 + rng() * 0.25;
     const steps = Math.ceil(boughLength * 3.2);
 
@@ -217,6 +214,7 @@ function generateDynamicBotanicalSakura(
     let currStart = attachPoint.pos.clone();
     let currentRadius = attachPoint.radius * 0.56;
 
+    // Branches always support blooms
     for (let s = 0; s < steps; s++) {
       const stepT = s / steps;
       const stepLen = 0.38;
@@ -234,18 +232,18 @@ function generateDynamicBotanicalSakura(
         createSegment(currStart, nextEnd, currentRadius, nextRadius, pickIndex(rng, BARK_PALETTE.length), rng())
       );
 
-      // Anchor foliage along outer branches to avoid bald spots
-      if (s >= Math.floor(steps * 0.3)) {
-        foliageAttachmentSites.push({
+      // Dense distribution along branch path
+      if (s >= Math.floor(steps * 0.25)) {
+        potentialFlowerSites.push({
           pos: nextEnd.clone(),
-          weight: stepT,
+          weight: 0.7 + stepT * 0.3,
         });
       }
 
       // Secondary and tertiary twigs
-      if (s > 2 && s % 2 === 0 && rng() < 0.8) {
+      if (s > 2 && s % 2 === 0 && rng() < 0.82) {
         const twigAngle = angle + (rng() > 0.5 ? 0.68 : -0.68) + (rng() - 0.5) * 0.2;
-        const twigLen = (0.52 + rng() * 0.42) * growthScale;
+        const twigLen = (0.5 + rng() * 0.4) * growthScale;
         const twigEnd = new THREE.Vector3(
           nextEnd.x + Math.cos(twigAngle) * twigLen,
           nextEnd.y + (0.32 + rng() * 0.28) * growthScale,
@@ -255,7 +253,7 @@ function generateDynamicBotanicalSakura(
           createSegment(nextEnd, twigEnd, nextRadius * 0.7, 0.06, 2, rng())
         );
 
-        foliageAttachmentSites.push({
+        potentialFlowerSites.push({
           pos: twigEnd.clone(),
           weight: 1.0,
         });
@@ -265,15 +263,13 @@ function generateDynamicBotanicalSakura(
       currentRadius = nextRadius;
     }
 
-    foliageAttachmentSites.push({
+    potentialFlowerSites.push({
       pos: currStart.clone(),
       weight: 1.0,
     });
   }
 
-  // 4. Volumetric Blossom Foliage (Full Canopy Without Baldness)
-  const crownRadius = Math.max(1.6, zone.n * 0.76 * growthScale);
-
+  // 4. Volumetric Blossom Placement
   const pushBlossomCluster = (
     mx: number,
     mz: number,
@@ -286,14 +282,14 @@ function generateDynamicBotanicalSakura(
     let oz = 0;
 
     if (anchorPos) {
-      ox = anchorPos.x + (rng() - 0.5) * 0.32;
-      oy = anchorPos.y + (rng() - 0.5) * 0.28;
-      oz = anchorPos.z + (rng() - 0.5) * 0.32;
+      ox = anchorPos.x + (rng() - 0.5) * 0.28;
+      oy = anchorPos.y + (rng() - 0.5) * 0.24;
+      oz = anchorPos.z + (rng() - 0.5) * 0.28;
     } else {
       let nearestDist = 999;
-      let target = foliageAttachmentSites[0]?.pos || new THREE.Vector3(0, H * 0.7, 0);
+      let target = potentialFlowerSites[0]?.pos || new THREE.Vector3(0, H * 0.7, 0);
 
-      for (const site of foliageAttachmentSites) {
+      for (const site of potentialFlowerSites) {
         const d = Math.hypot(mx - site.pos.x, mz - site.pos.z);
         if (d < nearestDist) {
           nearestDist = d;
@@ -301,12 +297,12 @@ function generateDynamicBotanicalSakura(
         }
       }
 
-      ox = mx * 0.94 + (rng() - 0.5) * 0.38;
+      ox = mx * 0.95 + (rng() - 0.5) * 0.35;
       oy = target.y + (rng() - 0.5) * 0.45;
-      oz = mz * 0.94 + (rng() - 0.5) * 0.38;
+      oz = mz * 0.95 + (rng() - 0.5) * 0.35;
     }
 
-    const clusterScale = (customSize || (0.56 + rng() * 0.26)) * Math.min(1.25, growthScale);
+    const clusterScale = customSize || (0.5 + rng() * 0.2) * Math.min(1.2, growthScale);
 
     data.canopy.push({
       ox,
@@ -315,7 +311,7 @@ function generateDynamicBotanicalSakura(
       os: clusterScale,
       fx: mx,
       fz: mz,
-      ci: pickIndex(rng, Math.max(1, colorCount)),
+      ci: pickIndex(rng, Math.max(1, colorPaletteLength)),
       pale,
       rotX: (rng() - 0.5) * 0.8,
       rotY: rng() * Math.PI * 2,
@@ -324,7 +320,7 @@ function generateDynamicBotanicalSakura(
     });
   };
 
-  // 4a. QR Code Center Data Modules
+  // 4a. Guaranteed QR Code Data Modules
   let qrModuleCount = 0;
   for (let r = 0; r < zone.n; r++) {
     for (let c = 0; c < zone.n; c++) {
@@ -337,32 +333,34 @@ function generateDynamicBotanicalSakura(
     }
   }
 
-  // 4b. Fill Candidate Branch Sites (Guarantees full branch coverage)
-  for (const site of foliageAttachmentSites) {
+  // 4b. Base Blossom Layer along branches
+  for (const site of potentialFlowerSites) {
     pushBlossomCluster(site.pos.x, site.pos.z, true, site.pos);
 
-    // Multi-layer cluster puff on dense sites
-    if (rng() < 0.65 * growthScale) {
+    // Progressive blossoms added as URL length increases
+    const extraBlooms = Math.floor((growthScale - 1.0) * 3);
+    for (let b = 0; b < extraBlooms; b++) {
       const offset = site.pos.clone().add(
-        new THREE.Vector3((rng() - 0.5) * 0.28, (rng() - 0.5) * 0.22, (rng() - 0.5) * 0.28)
+        new THREE.Vector3((rng() - 0.5) * 0.35, (rng() - 0.5) * 0.3, (rng() - 0.5) * 0.35)
       );
-      pushBlossomCluster(offset.x, offset.z, true, offset, 0.48 + rng() * 0.2);
+      pushBlossomCluster(offset.x, offset.z, true, offset, 0.44 + rng() * 0.16);
     }
   }
 
-  // 4c. Weeping Hanging Blossom Fringe
-  const droopCount = Math.floor(18 * growthScale);
+  // 4c. Weeping Hanging Tendrils
+  const droopCount = Math.floor(16 * growthScale);
+  const crownRadius = Math.max(1.6, zone.n * 0.74 * growthScale);
   for (let i = 0; i < droopCount; i++) {
     const angle = (i / droopCount) * Math.PI * 2 + (rng() - 0.5) * 0.3;
-    const rad = crownRadius * (0.65 + rng() * 0.28);
+    const rad = crownRadius * (0.65 + rng() * 0.25);
     const mx = Math.cos(angle) * rad;
     const mz = Math.sin(angle) * rad;
-    const dropPos = new THREE.Vector3(mx, H * 0.52 + rng() * 1.8, mz);
-    pushBlossomCluster(mx, mz, true, dropPos, 0.52 + rng() * 0.2);
+    const dropPos = new THREE.Vector3(mx, H * 0.54 + rng() * 1.8, mz);
+    pushBlossomCluster(mx, mz, true, dropPos, 0.46 + rng() * 0.18);
   }
 
-  // 5. Persistent Ground Fallen Petals (Ensures ground coverage is preserved)
-  const petalCount = Math.floor(75 * growthScale);
+  // 5. Ground Fallen Petals
+  const petalCount = Math.floor(65 * growthScale);
   for (let i = 0; i < petalCount; i++) {
     const angle = rng() * Math.PI * 2;
     const rad = 0.5 + Math.sqrt(rng()) * (half - 1.0);
@@ -370,17 +368,17 @@ function generateDynamicBotanicalSakura(
       x: Math.cos(angle) * rad + (rng() - 0.5) * 0.35,
       y: FLAT_TILE_TOP + 0.012,
       z: Math.sin(angle) * rad + (rng() - 0.5) * 0.35,
-      sx: 0.26 + rng() * 0.18,
+      sx: 0.24 + rng() * 0.16,
       sy: 0.02,
-      sz: 0.26 + rng() * 0.18,
+      sz: 0.24 + rng() * 0.16,
       ry: rng() * Math.PI * 2,
-      c: pickIndex(rng, Math.max(1, colorCount)),
+      c: pickIndex(rng, Math.max(1, colorPaletteLength)),
       u: rng(),
     });
   }
 
   // 6. Perimeter Grass & Reeds
-  const perimeterCount = Math.floor(38 * Math.min(1.3, growthScale));
+  const perimeterCount = 36;
   for (let i = 0; i < perimeterCount; i++) {
     const angle = (i / perimeterCount) * Math.PI * 2 + (rng() - 0.5) * 0.2;
     const rad = half - 1.4 + (rng() - 0.5) * 1.2;
@@ -531,7 +529,7 @@ function CanopyMorphMesh({
   seed: number;
   dark: THREE.Color;
 }) {
-  // Retain all petals so canopy density remains consistent
+  // Retains all blossom nodes
   const visible = items;
   const ref = useRef<THREE.InstancedMesh>(null);
   const st = useRef({ intro: 0, lastP: -1, dirty: true });
@@ -634,31 +632,26 @@ export default function Tree({
   }, [seed]);
 
   const branchSegmentGeo = useMemo(() => new THREE.CylinderGeometry(0.5, 0.5, 1, 16), []);
-  const blossomClusterGeo = useMemo(() => new THREE.DodecahedronGeometry(0.48, 0), []);
+  const blossomClusterGeo = useMemo(() => new THREE.DodecahedronGeometry(0.44, 0), []);
   const petalDiscGeo = useMemo(() => new THREE.CylinderGeometry(0.52, 0.52, 0.08, 6), []);
   const bladeGeo = useMemo(() => new THREE.ConeGeometry(0.1, 1, 4), []);
 
-  // Use dynamic foliage colors from user palette selection or default sakura tones
-  const foliageColorList = useMemo(
-    () => (palette?.foliage?.length ? palette.foliage : DEFAULT_SAKURA_PALETTE),
-    [palette]
-  );
+  // Dynamically uses palette.foliage so custom color pickers update blossoms immediately
+  const activeFoliageHexArray = useMemo(() => {
+    return palette?.foliage && palette.foliage.length > 0
+      ? palette.foliage
+      : DEFAULT_SAKURA_PALETTE;
+  }, [palette]);
 
   const data = useMemo(
-    () => generateDynamicBotanicalSakura(seed, grid, zone, foliageColorList.length),
-    [seed, grid, zone, foliageColorList.length]
+    () => generateDynamicSakura(seed, grid, zone, activeFoliageHexArray.length),
+    [seed, grid, zone, activeFoliageHexArray.length]
   );
 
   const canopyColors = useMemo(
-    () => foliageColorList.map((c) => new THREE.Color(c)),
-    [foliageColorList]
+    () => activeFoliageHexArray.map((c) => new THREE.Color(c)),
+    [activeFoliageHexArray]
   );
-
-  const petalColors = useMemo(
-    () => (palette?.accent?.length ? palette.accent : foliageColorList),
-    [palette, foliageColorList]
-  );
-
   const qrDark = useMemo(() => new THREE.Color(palette?.qrDark || "#d64f64"), [palette]);
 
   useFrame((_, rawDt) => {
@@ -677,17 +670,17 @@ export default function Tree({
   return (
     <>
       <group ref={group}>
-        {/* Continuous Trunk, Buttress Roots & Branch Network */}
+        {/* Continuous Trunk & Branch Skeleton */}
         <OrientedWoodMesh
           items={data.woodSegments}
           colors={BARK_PALETTE}
           geometry={branchSegmentGeo}
           roughness={0.92}
         />
-        {/* Ground Drift Petals (Dynamic color matching foliage palette) */}
+        {/* Ground Drift Petals inheriting active palette */}
         <InstancedBatch
           items={data.fallenPetals}
-          colors={petalColors}
+          colors={activeFoliageHexArray}
           geometry={petalDiscGeo}
           roughness={0.6}
         />
@@ -707,7 +700,7 @@ export default function Tree({
         />
       </group>
 
-      {/* Layered Blossom Clusters with Full Palette Customization */}
+      {/* Volumetric Blossom Canopy Reacting Directly to Custom Color Pickers */}
       <CanopyMorphMesh
         items={data.canopy}
         colors={canopyColors}
