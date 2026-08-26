@@ -127,7 +127,7 @@ function createSegment(
   };
 }
 
-function generateThickPetalSakura(
+function generateTallCrownSakura(
   seed: number,
   grid: QRGrid,
   _zone: ForestZone,
@@ -151,8 +151,9 @@ function generateThickPetalSakura(
   const coverageBound = half * 0.75;
   const crownRadius = coverageBound * 1.05;
 
-  const H = 10.2;
-  const baseTrunkRadius = 1.45;
+  // Elevated overall height & crown apex
+  const H = 14.2;
+  const baseTrunkRadius = 1.55;
 
   const textLength = grid.text ? grid.text.length : 16;
   const petalMultiplier = Math.min(4.0, Math.max(1.0, 1.0 + (textLength - 16) * 0.055));
@@ -169,7 +170,7 @@ function generateThickPetalSakura(
     );
     const p2 = new THREE.Vector3(
       Math.cos(rootAngle) * (baseTrunkRadius * 0.68),
-      H * 0.12,
+      H * 0.1,
       Math.sin(rootAngle) * (baseTrunkRadius * 0.68)
     );
     data.woodSegments.push(
@@ -177,19 +178,19 @@ function generateThickPetalSakura(
     );
   }
 
-  // 2. Twisted Trunk Column
-  const trunkSegments = 18;
+  // 2. Taller Twisted Trunk Column
+  const trunkSegments = 22;
   const trunkSpline: { pos: THREE.Vector3; radius: number }[] = [];
   const twistAngleOffset = rng() * Math.PI * 2;
 
   for (let i = 0; i <= trunkSegments; i++) {
     const t = i / trunkSegments;
-    const y = t * (H * 0.64);
+    const y = t * (H * 0.68);
     const twistRad = Math.sin(t * Math.PI * 1.35) * (baseTrunkRadius * 0.72);
     const ang = twistAngleOffset + t * Math.PI * 1.25;
     const cx = Math.cos(ang) * twistRad;
     const cz = Math.sin(ang) * twistRad * 0.65;
-    const r = THREE.MathUtils.lerp(baseTrunkRadius, baseTrunkRadius * 0.3, Math.pow(t, 0.62));
+    const r = THREE.MathUtils.lerp(baseTrunkRadius, baseTrunkRadius * 0.28, Math.pow(t, 0.62));
 
     trunkSpline.push({
       pos: new THREE.Vector3(cx, y + FLAT_TILE_TOP, cz),
@@ -225,13 +226,13 @@ function generateThickPetalSakura(
     }
   }
 
-  // 3. Cloud Pad Layout
+  // 3. Elevated Cloud Pad Anchors with Lofty Vertical Apex
   const cloudCenters = [
-    { x: 0.0, y: H * 0.88, z: 0.0, radius: crownRadius * 0.65, weight: 1.5 },
-    { x: -coverageBound * 0.65, y: H * 0.65, z: coverageBound * 0.2, radius: crownRadius * 0.55, weight: 1.2 },
-    { x: -coverageBound * 0.75, y: H * 0.48, z: -coverageBound * 0.3, radius: crownRadius * 0.45, weight: 1.0 },
-    { x: coverageBound * 0.7, y: H * 0.56, z: coverageBound * 0.25, radius: crownRadius * 0.5, weight: 1.1 },
-    { x: coverageBound * 0.4, y: H * 0.68, z: -coverageBound * 0.6, radius: crownRadius * 0.45, weight: 1.0 },
+    { x: 0.0, y: H * 0.96, z: 0.0, radius: crownRadius * 0.72, weight: 1.8 }, // Raised main top apex
+    { x: -coverageBound * 0.65, y: H * 0.72, z: coverageBound * 0.2, radius: crownRadius * 0.55, weight: 1.2 },
+    { x: -coverageBound * 0.75, y: H * 0.52, z: -coverageBound * 0.3, radius: crownRadius * 0.45, weight: 1.0 },
+    { x: coverageBound * 0.7, y: H * 0.62, z: coverageBound * 0.25, radius: crownRadius * 0.5, weight: 1.1 },
+    { x: coverageBound * 0.4, y: H * 0.76, z: -coverageBound * 0.6, radius: crownRadius * 0.45, weight: 1.0 },
   ];
 
   const potentialFlowerSites: { pos: THREE.Vector3; weight: number; cloudIdx: number }[] = [];
@@ -239,15 +240,15 @@ function generateThickPetalSakura(
   cloudCenters.forEach((cloud, cIdx) => {
     const attachIdx = cIdx === 0 ? trunkSegments - 2 : Math.floor(trunkSegments * (0.45 + cIdx * 0.1));
     const startPoint = trunkSpline[Math.min(trunkSegments - 1, attachIdx)];
-    const targetPos = new THREE.Vector3(cloud.x, cloud.y - 0.5, cloud.z);
-    const steps = 8;
+    const targetPos = new THREE.Vector3(cloud.x, cloud.y - 0.7, cloud.z);
+    const steps = 9;
 
     let currStart = startPoint.pos.clone();
     let currRadius = startPoint.radius * 0.65;
 
     for (let s = 1; s <= steps; s++) {
       const progress = s / steps;
-      const arch = Math.sin(progress * Math.PI) * 0.4;
+      const arch = Math.sin(progress * Math.PI) * 0.45;
       const nextEnd = new THREE.Vector3().lerpVectors(startPoint.pos, targetPos, progress);
       nextEnd.y += arch;
       nextEnd.x += (rng() - 0.5) * 0.15;
@@ -258,7 +259,7 @@ function generateThickPetalSakura(
         createSegment(currStart, nextEnd, currRadius, nextRadius, pickIndex(rng, TWISTED_WOOD_PALETTE.length), rng())
       );
 
-      if (progress > 0.3) {
+      if (progress > 0.25) {
         potentialFlowerSites.push({
           pos: nextEnd.clone(),
           weight: progress,
@@ -268,7 +269,7 @@ function generateThickPetalSakura(
 
       if (s > 2 && s % 2 === 0) {
         const twigEnd = nextEnd.clone().add(
-          new THREE.Vector3((rng() - 0.5) * 0.7, (rng() - 0.5) * 0.4 + 0.2, (rng() - 0.5) * 0.7)
+          new THREE.Vector3((rng() - 0.5) * 0.7, (rng() - 0.5) * 0.5 + 0.3, (rng() - 0.5) * 0.7)
         );
         data.woodSegments.push(
           createSegment(nextEnd, twigEnd, nextRadius * 0.6, 0.06, 1, rng())
@@ -285,7 +286,7 @@ function generateThickPetalSakura(
     }
   });
 
-  // 4. Chunky / Volumetric Petal Cluster Placement
+  // 4. Volumetric Petal Cluster Placement with Taller Dome Profile
   const pushBlossomCluster = (
     mx: number,
     mz: number,
@@ -313,14 +314,14 @@ function generateThickPetalSakura(
       }
 
       const distNorm = Math.min(1, minDist / targetCloud.radius);
-      const dome = Math.sqrt(Math.max(0, 1 - distNorm * distNorm)) * 2.2;
+      // Taller exponential dome for loftier canopy peak
+      const dome = Math.pow(Math.max(0, 1 - distNorm * distNorm), 0.6) * 3.2;
 
       ox = mx * 0.92 + (rng() - 0.5) * 0.35;
       oy = targetCloud.y + dome + (rng() - 0.5) * 0.6;
       oz = mz * 0.92 + (rng() - 0.5) * 0.35;
     }
 
-    // Increased baseline cluster scale for thicker, fuller petal puffs
     const clusterScale = customSize || (0.72 + rng() * 0.28);
 
     data.canopy.push({
@@ -362,7 +363,7 @@ function generateThickPetalSakura(
       const offset = site.pos.clone().add(
         new THREE.Vector3(
           (rng() - 0.5) * 0.48,
-          (rng() - 0.5) * 0.36,
+          (rng() - 0.5) * 0.4,
           (rng() - 0.5) * 0.48
         )
       );
@@ -370,28 +371,28 @@ function generateThickPetalSakura(
     }
   }
 
-  // 4c. Deep Cloud Dome Fills
+  // 4c. Lofty Cloud Dome Fills
   cloudCenters.forEach((cloud) => {
-    const count = Math.floor(70 * cloud.weight * petalMultiplier);
+    const count = Math.floor(75 * cloud.weight * petalMultiplier);
     for (let i = 0; i < count; i++) {
       const ang = rng() * Math.PI * 2;
       const rad = Math.sqrt(rng()) * cloud.radius;
       const mx = cloud.x + Math.cos(ang) * rad;
       const mz = cloud.z + Math.sin(ang) * rad;
-      const dome = Math.pow(Math.max(0, 1 - rad / cloud.radius), 0.52) * 1.8;
-      const fillerPos = new THREE.Vector3(mx, cloud.y + dome + (rng() - 0.5) * 0.45, mz);
+      const dome = Math.pow(Math.max(0, 1 - rad / cloud.radius), 0.52) * 2.6;
+      const fillerPos = new THREE.Vector3(mx, cloud.y + dome + (rng() - 0.5) * 0.5, mz);
       pushBlossomCluster(mx, mz, true, fillerPos, 0.7 + rng() * 0.25);
     }
   });
 
   // 5. Air Petal Drift Swirl
-  const driftCount = 54;
+  const driftCount = 60;
   for (let i = 0; i < driftCount; i++) {
     const angle = rng() * Math.PI * 2;
     const rad = 0.6 + Math.sqrt(rng()) * crownRadius * 1.1;
     data.driftingPetals.push({
       baseX: Math.cos(angle) * rad,
-      baseY: 0.8 + rng() * (H * 0.85),
+      baseY: 0.8 + rng() * (H * 0.95),
       baseZ: Math.sin(angle) * rad,
       speed: 0.4 + rng() * 0.5,
       swaySpeed: 1.2 + rng() * 1.5,
@@ -424,7 +425,7 @@ function generateThickPetalSakura(
     });
   });
 
-  // 7. Ground Fallen Petals (Thick Decals)
+  // 7. Ground Fallen Petals
   const petalCount = Math.floor(140 * petalMultiplier);
   for (let i = 0; i < petalCount; i++) {
     const angle = rng() * Math.PI * 2;
@@ -630,7 +631,6 @@ function ThickCanopyMorphMesh({
         v.oz + (v.fz - v.oz) * q
       );
 
-      // Thicker Y height and XZ expansion
       const sxz = v.os + ((v.pale ? 0.0001 : 0.96) - v.os) * q;
       const sy = (v.os * 0.9) + ((v.pale ? 0.0001 : 0.16) - (v.os * 0.9)) * q;
 
@@ -699,8 +699,8 @@ function DriftingPetalsMesh({
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
       const t = timeRef.current * item.speed + item.phase;
-      const y = (item.baseY - timeRef.current * item.speed * 0.8) % 8.0;
-      const actualY = y < 0.2 ? y + 8.0 : y;
+      const y = (item.baseY - timeRef.current * item.speed * 0.8) % 10.0;
+      const actualY = y < 0.2 ? y + 10.0 : y;
 
       const swayX = Math.sin(t * item.swaySpeed) * 0.45;
       const swayZ = Math.cos(t * item.swaySpeed * 0.8) * 0.45;
@@ -752,8 +752,6 @@ export default function Tree({
 
   const branchSegmentGeo = useMemo(() => new THREE.CylinderGeometry(0.5, 0.5, 1, 16), []);
   const rockGeo = useMemo(() => new THREE.DodecahedronGeometry(0.6, 0), []);
-  
-  // Chunky, thick 12-sided dodecahedrons (radius 0.62) and thick solid disks (depth 0.22)
   const blossomClusterGeo = useMemo(() => new THREE.DodecahedronGeometry(0.62, 0), []);
   const thickPetalDiscGeo = useMemo(() => new THREE.CylinderGeometry(0.52, 0.52, 0.22, 8), []);
   const bladeGeo = useMemo(() => new THREE.ConeGeometry(0.1, 1, 4), []);
@@ -765,7 +763,7 @@ export default function Tree({
   }, [palette]);
 
   const data = useMemo(
-    () => generateThickPetalSakura(seed, grid, zone, activeFoliageHexArray.length),
+    () => generateTallCrownSakura(seed, grid, zone, activeFoliageHexArray.length),
     [seed, grid, zone, activeFoliageHexArray.length]
   );
 
@@ -834,7 +832,7 @@ export default function Tree({
         />
       </group>
 
-      {/* Volumetric Thick Blossom Canopy */}
+      {/* Volumetric Tall-Crown Blossom Canopy */}
       <ThickCanopyMorphMesh
         items={data.canopy}
         colors={canopyColors}
