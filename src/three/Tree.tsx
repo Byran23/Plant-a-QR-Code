@@ -46,13 +46,12 @@ interface SakuraSceneData {
 
 const FLAT_TILE_TOP = 0.14;
 
-// Dedicated color arrays matching the artwork
 const BLOSSOM_PALETTE = [
-  "#ffb1c4", // Soft Sakura Pink
-  "#ffa3ba", // Vibrant Mid Pink
-  "#ffc2d1", // Pale Highlight Pink
-  "#f78fa9", // Deeper Blossom Pink
-  "#ffdbe4", // White-Pink Petal Tip
+  "#ffb1c4",
+  "#ffa3ba",
+  "#ffc2d1",
+  "#f78fa9",
+  "#ffdbe4",
 ];
 
 const TRUNK_PALETTE = ["#543b2f", "#412a1f", "#674838", "#362117"];
@@ -74,7 +73,7 @@ function generateSakuraScene(seed: number, grid: QRGrid, zone: ForestZone): Saku
   const half = (grid.total - 1) / 2;
   const H = 6.8;
 
-  // 1. Segmented Ribbed Trunk
+  // 1. Trunk Segments
   const rings = 14;
   const ringH = (H * 0.48) / rings;
   for (let i = 0; i < rings; i++) {
@@ -92,7 +91,7 @@ function generateSakuraScene(seed: number, grid: QRGrid, zone: ForestZone): Saku
     });
   }
 
-  // 2. Dark Inner Branches (Radial Scaffold)
+  // 2. Branches
   const branchCount = 12;
   const branchBaseY = H * 0.42;
   for (let i = 0; i < branchCount; i++) {
@@ -103,7 +102,7 @@ function generateSakuraScene(seed: number, grid: QRGrid, zone: ForestZone): Saku
 
     const dirX = Math.cos(angle);
     const dirZ = Math.sin(angle);
-    const inv = 1 / Math.hypot(dirX, slope, dirZ);
+    const inv = 1 / (Math.hypot(dirX, slope, dirZ) || 1);
 
     let px = 0;
     let py = branchBaseY + rng() * 0.7;
@@ -130,14 +129,14 @@ function generateSakuraScene(seed: number, grid: QRGrid, zone: ForestZone): Saku
     }
   }
 
-  // 3. Dense Canopy — Tiered Crown + Hanging Tendrils
+  // 3. Canopy
   const crownY = H + 0.6;
-  const maxCrownRadius = zone.n * 0.62;
+  const maxCrownRadius = Math.max(1, zone.n * 0.62);
 
   const pushCanopyLeaf = (mx: number, mz: number, pale: boolean, isHanging = false) => {
     const distRatio = Math.min(1, Math.hypot(mx, mz) / maxCrownRadius);
     const dome = Math.sqrt(Math.max(0, 1 - distRatio * distRatio));
-    
+
     const oy = isHanging
       ? branchBaseY + 0.4 + (rng() - 0.5) * 0.8
       : crownY + (dome * 3.0 - 1.2) + (rng() - 0.5) * 1.1;
@@ -158,20 +157,18 @@ function generateSakuraScene(seed: number, grid: QRGrid, zone: ForestZone): Saku
     });
   };
 
-  // Assign QR data modules to leaf positions
   let qrModuleCount = 0;
   for (let r = 0; r < zone.n; r++) {
     for (let c = 0; c < zone.n; c++) {
       const gr = zone.z0 + r;
       const gc = zone.x0 + c;
-      if (grid.data[gr * grid.total + gc] === 1) {
+      if (grid.data && grid.data[gr * grid.total + gc] === 1) {
         pushCanopyLeaf(gc - half, gr - half, false);
         qrModuleCount++;
       }
     }
   }
 
-  // Add voluminous decorative blossom clusters
   const fillerCount = Math.ceil(qrModuleCount * 2.2);
   for (let i = 0; i < fillerCount; i++) {
     const angle = rng() * Math.PI * 2;
@@ -179,7 +176,6 @@ function generateSakuraScene(seed: number, grid: QRGrid, zone: ForestZone): Saku
     pushCanopyLeaf(Math.cos(angle) * rad, Math.sin(angle) * rad, true);
   }
 
-  // Drooping perimeter leaf tendrils
   const droopCount = 20 + Math.floor(rng() * 8);
   for (let i = 0; i < droopCount; i++) {
     const angle = (i / droopCount) * Math.PI * 2 + (rng() - 0.5) * 0.25;
@@ -187,11 +183,11 @@ function generateSakuraScene(seed: number, grid: QRGrid, zone: ForestZone): Saku
     pushCanopyLeaf(Math.cos(angle) * rad, Math.sin(angle) * rad, true, true);
   }
 
-  // 4. Fallen Petals on the Patio
+  // 4. Ground Petals
   const petalCount = 60 + Math.floor(rng() * 25);
   for (let i = 0; i < petalCount; i++) {
     const angle = rng() * Math.PI * 2;
-    const rad = 0.6 + Math.sqrt(rng()) * (half - 1.0);
+    const rad = 0.6 + Math.sqrt(rng()) * Math.max(1, half - 1.0);
     data.groundPetals.push({
       x: Math.cos(angle) * rad + (rng() - 0.5) * 0.35,
       y: FLAT_TILE_TOP + 0.015,
@@ -205,7 +201,7 @@ function generateSakuraScene(seed: number, grid: QRGrid, zone: ForestZone): Saku
     });
   }
 
-  // 5. Perimeter Grassy Borders & Spiky Flora
+  // 5. Tufts
   const perimeterTufts = 36 + Math.floor(rng() * 12);
   for (let i = 0; i < perimeterTufts; i++) {
     const angle = (i / perimeterTufts) * Math.PI * 2 + (rng() - 0.5) * 0.18;
@@ -214,7 +210,6 @@ function generateSakuraScene(seed: number, grid: QRGrid, zone: ForestZone): Saku
     const x = Math.cos(angle) * rad;
     const z = Math.sin(angle) * rad;
 
-    // Green grass blade cluster
     data.grassBlades.push({
       x,
       y: FLAT_TILE_TOP + h / 2,
@@ -229,7 +224,6 @@ function generateSakuraScene(seed: number, grid: QRGrid, zone: ForestZone): Saku
       u: rng(),
     });
 
-    // Pink / Lavender accent reeds
     if (rng() < 0.45) {
       const rh = h * (0.8 + rng() * 0.35);
       data.pinkReeds.push({
@@ -256,7 +250,7 @@ function generateSakuraScene(seed: number, grid: QRGrid, zone: ForestZone): Saku
 const tmp = new THREE.Object3D();
 const col = new THREE.Color();
 
-function InstancedBatch({
+function SafeInstancedMesh({
   items,
   colors,
   geometry,
@@ -271,11 +265,11 @@ function InstancedBatch({
 
   useLayoutEffect(() => {
     const m = ref.current;
-    if (!m) return;
+    if (!m || items.length === 0) return;
     for (let i = 0; i < items.length; i++) {
       const v = items[i];
       tmp.position.set(v.x, v.y, v.z);
-      tmp.scale.set(v.sx, v.sy, v.sz);
+      tmp.scale.set(Math.max(0.001, v.sx), Math.max(0.001, v.sy), Math.max(0.001, v.sz));
       tmp.rotation.set(v.rx || 0, v.ry || 0, v.rz || 0);
       tmp.updateMatrix();
       m.setMatrixAt(i, tmp.matrix);
@@ -287,6 +281,7 @@ function InstancedBatch({
   }, [items, colors]);
 
   if (items.length === 0) return null;
+
   return (
     <instancedMesh
       ref={ref}
@@ -294,17 +289,13 @@ function InstancedBatch({
       castShadow
       receiveShadow
       frustumCulled={false}
-      dispose={null}
     >
       <meshStandardMaterial roughness={roughness} />
     </instancedMesh>
   );
 }
 
-/**
- * Sakura Blossom Leaf Cloud with interactive morphing to flat QR matrix
- */
-function SakuraCanopyMesh({
+function CanopyMesh({
   items,
   colors,
   geometry,
@@ -337,11 +328,11 @@ function SakuraCanopyMesh({
 
   useFrame((_, rawDt) => {
     const m = ref.current;
-    if (!m) return;
+    if (!m || visible.length === 0) return;
     const s = st.current;
     const dt = Math.min(rawDt, 0.05);
     s.intro = Math.min(1, s.intro + dt * 0.72);
-    const p = morph.p;
+    const p = morph?.p ?? 0;
     if (!s.dirty && Math.abs(p - s.lastP) < 0.0005 && s.intro >= 1) return;
     s.dirty = false;
     s.lastP = p;
@@ -370,7 +361,7 @@ function SakuraCanopyMesh({
       );
       tmp.updateMatrix();
       m.setMatrixAt(i, tmp.matrix);
-      col.copy(colors[v.ci % colors.length]);
+      col.copy(colors[v.ci % colors.length] || colors[0]);
       if (!v.pale) col.lerp(dark, q);
       m.setColorAt(i, col);
     }
@@ -379,6 +370,7 @@ function SakuraCanopyMesh({
   });
 
   if (visible.length === 0) return null;
+
   return (
     <instancedMesh
       ref={ref}
@@ -386,7 +378,6 @@ function SakuraCanopyMesh({
       castShadow
       receiveShadow
       frustumCulled={false}
-      dispose={null}
     >
       <meshStandardMaterial roughness={0.65} />
     </instancedMesh>
@@ -395,7 +386,7 @@ function SakuraCanopyMesh({
 
 /* ------------------------------------------------------------------ */
 
-export default function SakuraTree({
+export default function Tree({
   seed,
   palette,
   grid,
@@ -413,10 +404,10 @@ export default function SakuraTree({
     intro.current = 0;
   }, [seed]);
 
-  // Leaf/Petal geometry: faceted rounded box to capture soft light bouncing
-  const leafGeo = useMemo(() => new RoundedBoxGeometry(1, 0.7, 1, 2, 0.2), []);
-  const trunkGeo = useMemo(() => new THREE.CylinderGeometry(0.5, 0.5, 1, 12), []);
-  const boxGeo = useMemo(() => new RoundedBoxGeometry(1, 1, 1, 2, 0.12), []);
+  // Standard Three.js Geometries to prevent any missing class / bundle loading errors
+  const boxGeo = useMemo(() => new THREE.BoxGeometry(1, 1, 1), []);
+  const cylinderGeo = useMemo(() => new THREE.CylinderGeometry(0.5, 0.5, 1, 12), []);
+  const petalGeo = useMemo(() => new THREE.BoxGeometry(1, 0.6, 1), []);
 
   const data = useMemo(() => generateSakuraScene(seed, grid, zone), [seed, grid, zone]);
 
@@ -424,14 +415,15 @@ export default function SakuraTree({
     () => BLOSSOM_PALETTE.map((c) => new THREE.Color(c)),
     [],
   );
-  const qrDark = useMemo(() => new THREE.Color(palette.qrDark || "#c84e62"), [palette]);
+  const qrDark = useMemo(() => new THREE.Color(palette?.qrDark || "#c84e62"), [palette]);
 
   useFrame((_, rawDt) => {
     const g = group.current;
     if (!g) return;
     const dt = Math.min(rawDt, 0.05);
     intro.current = Math.min(1, intro.current + dt * 0.7);
-    const q = smooth01(morph.p);
+    const p = morph?.p ?? 0;
+    const q = smooth01(p);
     const grow = easeOutBack(intro.current / 0.85);
     const sc = Math.max(0.0001, (1 - q) * grow);
     g.scale.setScalar(sc);
@@ -440,38 +432,32 @@ export default function SakuraTree({
 
   return (
     <>
-      {/* Structural Elements (Collapses away when QR assembles) */}
       <group ref={group}>
-        {/* Ribbed Cylindrical Trunk */}
-        <InstancedBatch
+        <SafeInstancedMesh
           items={data.trunkSegments}
           colors={TRUNK_PALETTE}
-          geometry={trunkGeo}
+          geometry={cylinderGeo}
           roughness={0.92}
         />
-        {/* Dark Timber Branches */}
-        <InstancedBatch
+        <SafeInstancedMesh
           items={data.branches}
           colors={[BRANCH_COLOR]}
           geometry={boxGeo}
           roughness={0.88}
         />
-        {/* Scattered Ground Petals */}
-        <InstancedBatch
+        <SafeInstancedMesh
           items={data.groundPetals}
           colors={BLOSSOM_PALETTE}
-          geometry={leafGeo}
+          geometry={petalGeo}
           roughness={0.6}
         />
-        {/* Perimeter Green Grass */}
-        <InstancedBatch
+        <SafeInstancedMesh
           items={data.grassBlades}
           colors={GRASS_PALETTE}
           geometry={boxGeo}
           roughness={0.85}
         />
-        {/* Perimeter Pink Reeds */}
-        <InstancedBatch
+        <SafeInstancedMesh
           items={data.pinkReeds}
           colors={REED_PALETTE}
           geometry={boxGeo}
@@ -479,13 +465,12 @@ export default function SakuraTree({
         />
       </group>
 
-      {/* Blossom Canopy (Stays and assembles into the QR code modules) */}
-      <SakuraCanopyMesh
+      <CanopyMesh
         items={data.canopyLeaves}
         colors={canopyColors}
-        geometry={leafGeo}
+        geometry={petalGeo}
         seed={seed}
-        density={palette.foliageDensity ?? 1.0}
+        density={palette?.foliageDensity ?? 1.0}
         dark={qrDark}
       />
     </>
