@@ -20,7 +20,7 @@ interface InstanceItem {
   u: number;
 }
 
-interface CanopyBlossom {
+interface CanopyLeafNode {
   ox: number;
   oy: number;
   oz: number;
@@ -36,130 +36,207 @@ interface CanopyBlossom {
 }
 
 interface TreeSceneData {
-  trunk: InstanceItem[];
-  branches: InstanceItem[];
-  canopy: CanopyBlossom[];
-  fallenPetals: InstanceItem[];
-  grassEdges: InstanceItem[];
-  pinkReeds: InstanceItem[];
+  trunkMeshItems: InstanceItem[];
+  branchMeshItems: InstanceItem[];
+  canopyNodes: CanopyLeafNode[];
+  groundPetals: InstanceItem[];
+  grassClusters: InstanceItem[];
 }
 
 const FLAT_TILE_TOP = 0.14;
 
-const SAKURA_COLORS = [
-  "#ffb3c6",
-  "#ff9ebb",
-  "#ffc5d3",
-  "#fa8fa8",
-  "#ffdce5",
-  "#ffa0b8",
+// Professional botanic Cherry Blossom color palette
+const SAKURA_PALETTE = [
+  "#ffb0c7", // Sakura mid-petal
+  "#ffa1bc", // Vibrant petal center
+  "#ffc8d7", // Soft bright petal tip
+  "#f389a4", // Shadow underside petal
+  "#ffe8ef", // Translucent white-pink petal edge
+  "#ff95b3", // Saturated blossom core
 ];
 
-const BARK_COLORS = ["#5c4033", "#43281c", "#6b493b"];
-const BRANCH_COLOR = ["#43281c"];
-const GRASS_COLORS = ["#82bf4f", "#94ce5e", "#71ab41"];
-const REED_COLORS = ["#df8db0", "#ebb0cb", "#cf779f"];
+const BARK_SHADES = ["#432d24", "#352119", "#52372c", "#2c1a13"];
+const BRANCH_SHADES = ["#39251c", "#2f1d16", "#482f24"];
+const GRASS_SHADES = ["#689f38", "#7cb342", "#558b2f", "#8bc34a"];
 
-function generateAdaptiveBulkySakura(
+/**
+ * Procedural low-poly Sakura generation utilizing botanical L-System branch recursion.
+ */
+function generateBotanicalSakura(
   seed: number,
   grid: QRGrid,
   zone: ForestZone
 ): TreeSceneData {
   const rng = mulberry32(seed);
   const data: TreeSceneData = {
-    trunk: [],
-    branches: [],
-    canopy: [],
-    fallenPetals: [],
-    grassEdges: [],
-    pinkReeds: [],
+    trunkMeshItems: [],
+    branchMeshItems: [],
+    canopyNodes: [],
+    groundPetals: [],
+    grassClusters: [],
   };
 
   const half = (grid.total - 1) / 2;
-
-  // Dynamic scaling based on grid size (longer URLs produce larger grids & zones)
   const sizeRatio = Math.max(1, grid.size / 21);
-  const H = (8.5 + zone.n * 0.38) * Math.min(1.45, sizeRatio);
-  const trunkBaseRadius = (1.4 + zone.n * 0.08) * Math.min(1.4, sizeRatio);
-  const trunkTopRadius = trunkBaseRadius * 0.52;
 
-  // 1. Trunk — Scales up in height and thickness with grid complexity
-  const numRings = Math.floor(18 + zone.n * 0.8);
-  const ringH = (H * 0.44) / numRings;
+  // Proportional tree architecture
+  const H = (7.8 + zone.n * 0.42) * Math.min(1.35, sizeRatio);
+  const trunkBaseRadius = (1.1 + zone.n * 0.06) * Math.min(1.3, sizeRatio);
+  const trunkTopRadius = trunkBaseRadius * 0.48;
 
-  for (let i = 0; i < numRings; i++) {
-    const t = i / numRings;
+  // 1. Natural Trunk with Natural Curvature (Continuous Spline)
+  const trunkSteps = 16;
+  const trunkStepH = (H * 0.46) / trunkSteps;
+  let trunkX = 0;
+  let trunkZ = 0;
+  const trunkSpline: THREE.Vector3[] = [];
+
+  for (let i = 0; i <= trunkSteps; i++) {
+    const t = i / trunkSteps;
     const r = THREE.MathUtils.lerp(trunkBaseRadius, trunkTopRadius, Math.pow(t, 0.75));
-    data.trunk.push({
-      x: 0,
-      y: i * ringH + ringH * 0.5,
-      z: 0,
-      sx: r * 2,
-      sy: ringH * 0.96,
-      sz: r * 2,
-      c: i % 2 === 0 ? 0 : 1,
-      u: rng(),
-    });
-  }
+    trunkX += Math.sin(i * 0.55 + seed) * 0.05 + (rng() - 0.5) * 0.04;
+    trunkZ += Math.cos(i * 0.48 + seed) * 0.05 + (rng() - 0.5) * 0.04;
+    const y = i * trunkStepH;
 
-  // 2. Multi-tier Branch Scaffolding — Dynamically adds more branches for longer URLs
-  const numBranches = Math.floor(16 + zone.n * 1.4);
-  const branchStartY = H * 0.35;
-  for (let i = 0; i < numBranches; i++) {
-    const angle = (i / numBranches) * Math.PI * 2 + (rng() - 0.5) * 0.4;
-    const length = 3.0 + rng() * (zone.n * 0.55);
-    const slope = 0.32 + rng() * 0.48;
-    const steps = Math.ceil(length * 3.4);
+    trunkSpline.push(new THREE.Vector3(trunkX, y, trunkZ));
 
-    const dx = Math.cos(angle);
-    const dz = Math.sin(angle);
-    const inv = 1 / (Math.hypot(dx, slope, dz) || 1);
-
-    let px = 0;
-    let py = branchStartY + rng() * (H * 0.28);
-    let pz = 0;
-
-    for (let s = 0; s < steps; s++) {
-      px += dx * inv * 0.32;
-      py += slope * inv * 0.32;
-      pz += dz * inv * 0.32;
-      const thick = Math.max(0.18, (0.55 + zone.n * 0.02) - (s / steps) * 0.38);
-      data.branches.push({
-        x: px,
-        y: py,
-        z: pz,
-        sx: thick,
-        sy: thick * 1.3,
-        sz: thick,
-        rx: (rng() - 0.5) * 0.12,
-        ry: angle,
-        rz: (rng() - 0.5) * 0.12,
-        c: 0,
+    if (i < trunkSteps) {
+      data.trunkMeshItems.push({
+        x: trunkX,
+        y: y + trunkStepH * 0.5,
+        z: trunkZ,
+        sx: r * 2,
+        sy: trunkStepH * 1.05,
+        sz: r * 2,
+        rx: (rng() - 0.5) * 0.06,
+        ry: rng() * Math.PI,
+        rz: (rng() - 0.5) * 0.06,
+        c: i % 2 === 0 ? 0 : 1,
         u: rng(),
       });
     }
   }
 
-  // 3. Voluminous Blossom Canopy — Fully expands to cover larger zone sizes
-  const crownBaseY = H * 0.68;
-  const crownRadius = Math.max(1.2, zone.n * 0.72);
+  // 2. Recursive L-System Branch Hierarchy with Terminal Blossom Buds
+  const branchOrigins: THREE.Vector3[] = [];
+  const numMainBoughs = Math.floor(7 + zone.n * 0.6);
+  const boughStartY = H * 0.38;
 
-  const pushPetalCluster = (mx: number, mz: number, pale: boolean, isDroop = false) => {
+  function growBranch(
+    start: THREE.Vector3,
+    direction: THREE.Vector3,
+    length: number,
+    thickness: number,
+    depth: number
+  ) {
+    const segments = Math.max(3, Math.ceil(length * 3.5));
+    const stepLen = length / segments;
+    let curr = start.clone();
+    const dir = direction.clone().normalize();
+
+    for (let s = 0; s < segments; s++) {
+      const prog = s / segments;
+      const tThick = THREE.MathUtils.lerp(thickness, thickness * 0.45, prog);
+      const next = curr.clone().addScaledVector(dir, stepLen);
+
+      // Natural gravitational sag and random divergence
+      dir.y -= 0.02 * (1 - prog);
+      dir.x += (rng() - 0.5) * 0.08;
+      dir.z += (rng() - 0.5) * 0.08;
+      dir.normalize();
+
+      const mid = curr.clone().lerp(next, 0.5);
+
+      // Compute Euler rotation aligned to branch segment direction
+      const dummy = new THREE.Object3D();
+      dummy.position.copy(mid);
+      dummy.lookAt(next);
+
+      data.branchMeshItems.push({
+        x: mid.x,
+        y: mid.y,
+        z: mid.z,
+        sx: tThick,
+        sy: tThick * 1.15,
+        sz: stepLen * 1.05,
+        rx: dummy.rotation.x,
+        ry: dummy.rotation.y,
+        rz: dummy.rotation.z,
+        c: pickIndex(rng, BRANCH_SHADES.length),
+        u: rng(),
+      });
+
+      curr = next;
+    }
+
+    branchOrigins.push(curr.clone());
+
+    // Sub-branching split
+    if (depth > 0) {
+      const splits = 2 + (rng() > 0.65 ? 1 : 0);
+      for (let k = 0; k < splits; k++) {
+        const spreadAngle = ((k / splits) * Math.PI - Math.PI / 2) * 0.85 + (rng() - 0.5) * 0.5;
+        const subDir = dir
+          .clone()
+          .applyAxisAngle(new THREE.Vector3(0, 1, 0), spreadAngle);
+        subDir.y += 0.25 + rng() * 0.35;
+        subDir.normalize();
+
+        growBranch(
+          curr,
+          subDir,
+          length * (0.62 + rng() * 0.2),
+          thickness * 0.6,
+          depth - 1
+        );
+      }
+    }
+  }
+
+  // Generate primary boughs
+  for (let i = 0; i < numMainBoughs; i++) {
+    const angle = (i / numMainBoughs) * Math.PI * 2 + (rng() - 0.5) * 0.45;
+    const startIdx = Math.min(
+      trunkSpline.length - 1,
+      Math.floor(trunkSteps * 0.65 + (i / numMainBoughs) * (trunkSteps * 0.35))
+    );
+    const origin = trunkSpline[startIdx] || new THREE.Vector3(0, boughStartY, 0);
+
+    const boughDir = new THREE.Vector3(
+      Math.cos(angle),
+      0.35 + rng() * 0.4,
+      Math.sin(angle)
+    ).normalize();
+
+    growBranch(
+      origin.clone(),
+      boughDir,
+      2.6 + rng() * (zone.n * 0.42),
+      0.45 + zone.n * 0.02,
+      2
+    );
+  }
+
+  // 3. Volumetric Leaf Clusters (Gaussian Crown distribution + Canopy Droop)
+  const crownCenterY = H + 0.5;
+  const crownRadius = Math.max(1.5, zone.n * 0.68);
+
+  const pushCanopyNode = (mx: number, mz: number, pale: boolean, isDroop = false) => {
     const dist = Math.min(1, Math.hypot(mx, mz) / crownRadius);
-    const domeHeight = Math.pow(Math.max(0, 1 - dist), 0.65) * (4.2 + zone.n * 0.22);
+    const domeCurve = Math.pow(Math.max(0, 1 - dist), 0.6) * (3.8 + zone.n * 0.2);
 
     const oy = isDroop
-      ? branchStartY + 0.3 + rng() * (H * 0.25)
-      : crownBaseY + domeHeight + (rng() - 0.5) * 1.2;
+      ? boughStartY + 0.3 + rng() * 1.5
+      : crownCenterY + domeCurve + (rng() - 0.5) * 1.2;
 
-    data.canopy.push({
-      ox: mx * (isDroop ? 1.08 : 0.94) + (rng() - 0.5) * 0.9,
+    data.canopyNodes.push({
+      ox: mx * (isDroop ? 1.08 : 0.95) + (rng() - 0.5) * 0.85,
       oy,
-      oz: mz * (isDroop ? 1.08 : 0.94) + (rng() - 0.5) * 0.9,
-      os: isDroop ? 0.9 + rng() * 0.5 : 1.25 + rng() * 0.9,
+      oz: mz * (isDroop ? 1.08 : 0.95) + (rng() - 0.5) * 0.85,
+      os: isDroop ? 0.75 + rng() * 0.4 : 1.1 + rng() * 0.75,
       fx: mx,
       fz: mz,
-      ci: pickIndex(rng, SAKURA_COLORS.length),
+      ci: pickIndex(rng, SAKURA_PALETTE.length),
       pale,
       rotX: (rng() - 0.5) * 0.8,
       rotY: rng() * Math.PI * 2,
@@ -168,92 +245,96 @@ function generateAdaptiveBulkySakura(
     });
   };
 
-  // QR Modules in tree crown
+  // Map QR matrix data nodes directly into crown foliage
   let qrModuleCount = 0;
   for (let r = 0; r < zone.n; r++) {
     for (let c = 0; c < zone.n; c++) {
       const gr = zone.z0 + r;
       const gc = zone.x0 + c;
       if (grid?.data && grid.data[gr * grid.total + gc] === 1) {
-        pushPetalCluster(gc - half, gr - half, false);
+        pushCanopyNode(gc - half, gr - half, false);
         qrModuleCount++;
       }
     }
   }
 
-  // Multiply extra non-data blossom puffs so the canopy stays dense and fluffy
-  const fillers = Math.ceil(qrModuleCount * 3.8);
-  for (let i = 0; i < fillers; i++) {
-    const angle = rng() * Math.PI * 2;
-    const rad = Math.sqrt(rng()) * crownRadius * 0.98;
-    pushPetalCluster(Math.cos(angle) * rad, Math.sin(angle) * rad, true);
-  }
-
-  // Weeping hanging flower tendrils around the perimeter
-  const droops = Math.floor(26 + zone.n * 1.5);
-  for (let i = 0; i < droops; i++) {
-    const angle = (i / droops) * Math.PI * 2 + (rng() - 0.5) * 0.35;
-    const rad = crownRadius * (0.65 + rng() * 0.32);
-    pushPetalCluster(Math.cos(angle) * rad, Math.sin(angle) * rad, true, true);
-  }
-
-  // 4. Ground Fallen Petals
-  const petalCount = Math.floor(65 + zone.n * 3.5);
-  for (let i = 0; i < petalCount; i++) {
-    const angle = rng() * Math.PI * 2;
-    const rad = 0.6 + Math.sqrt(rng()) * (half - 1.2);
-    data.fallenPetals.push({
-      x: Math.cos(angle) * rad + (rng() - 0.5) * 0.35,
-      y: FLAT_TILE_TOP + 0.015,
-      z: Math.sin(angle) * rad + (rng() - 0.5) * 0.35,
-      sx: 0.28 + rng() * 0.2,
-      sy: 0.02,
-      sz: 0.28 + rng() * 0.2,
-      ry: rng() * Math.PI * 2,
-      c: pickIndex(rng, SAKURA_COLORS.length),
-      u: rng(),
-    });
-  }
-
-  // 5. Perimeter Vegetation
-  const perimeterCount = Math.floor(36 + zone.n * 2.2);
-  for (let i = 0; i < perimeterCount; i++) {
-    const angle = (i / perimeterCount) * Math.PI * 2 + (rng() - 0.5) * 0.2;
-    const rad = half - 1.4 + (rng() - 0.5) * 1.2;
-    const h = 0.4 + rng() * 0.55;
-    const x = Math.cos(angle) * rad;
-    const z = Math.sin(angle) * rad;
-
-    data.grassEdges.push({
-      x,
-      y: FLAT_TILE_TOP + h / 2,
-      z,
-      sx: 0.1,
-      sy: h,
-      sz: 0.1,
-      rx: (rng() - 0.5) * 0.2,
-      ry: rng() * Math.PI,
-      rz: (rng() - 0.5) * 0.2,
-      c: pickIndex(rng, GRASS_COLORS.length),
-      u: rng(),
-    });
-
-    if (rng() < 0.45) {
-      const rh = h * (0.8 + rng() * 0.35);
-      data.pinkReeds.push({
-        x: x + (rng() - 0.5) * 0.3,
-        y: FLAT_TILE_TOP + rh / 2,
-        z: z + (rng() - 0.5) * 0.3,
-        sx: 0.08,
-        sy: rh,
-        sz: 0.08,
-        rx: (rng() - 0.5) * 0.25,
-        ry: rng() * Math.PI,
-        rz: (rng() - 0.5) * 0.25,
-        c: pickIndex(rng, REED_COLORS.length),
+  // Foliage clusters seeded at actual branch endpoints
+  for (const endPoint of branchOrigins) {
+    const clusterPuffs = 4 + Math.floor(rng() * 4);
+    for (let p = 0; p < clusterPuffs; p++) {
+      const rx = (rng() - 0.5) * 1.4;
+      const ry = (rng() - 0.5) * 1.2;
+      const rz = (rng() - 0.5) * 1.4;
+      data.canopyNodes.push({
+        ox: endPoint.x + rx,
+        oy: endPoint.y + ry,
+        oz: endPoint.z + rz,
+        os: 0.85 + rng() * 0.55,
+        fx: endPoint.x + rx,
+        fz: endPoint.z + rz,
+        ci: pickIndex(rng, SAKURA_PALETTE.length),
+        pale: true,
+        rotX: rng() * Math.PI,
+        rotY: rng() * Math.PI,
+        rotZ: rng() * Math.PI,
         u: rng(),
       });
     }
+  }
+
+  // Volumetric fill for smooth organic silhouette
+  const extraFoliage = Math.ceil(qrModuleCount * 2.8);
+  for (let i = 0; i < extraFoliage; i++) {
+    const angle = rng() * Math.PI * 2;
+    const rad = Math.sqrt(rng()) * crownRadius * 0.95;
+    pushCanopyNode(Math.cos(angle) * rad, Math.sin(angle) * rad, true);
+  }
+
+  // Drooping weeping tendrils
+  const droopCount = Math.floor(22 + zone.n * 1.2);
+  for (let i = 0; i < droopCount; i++) {
+    const angle = (i / droopCount) * Math.PI * 2 + (rng() - 0.5) * 0.3;
+    const rad = crownRadius * (0.68 + rng() * 0.3);
+    pushCanopyNode(Math.cos(angle) * rad, Math.sin(angle) * rad, true, true);
+  }
+
+  // 4. Ground Petal Accumulation (Physically accurate drift density under tree footprint)
+  const petalCount = Math.floor(75 + zone.n * 3.8);
+  for (let i = 0; i < petalCount; i++) {
+    const angle = rng() * Math.PI * 2;
+    const rad = 0.5 + Math.pow(rng(), 0.6) * (half - 1.2);
+    data.groundPetals.push({
+      x: Math.cos(angle) * rad + (rng() - 0.5) * 0.35,
+      y: FLAT_TILE_TOP + 0.012,
+      z: Math.sin(angle) * rad + (rng() - 0.5) * 0.35,
+      sx: 0.24 + rng() * 0.18,
+      sy: 0.015,
+      sz: 0.24 + rng() * 0.18,
+      ry: rng() * Math.PI * 2,
+      c: pickIndex(rng, SAKURA_PALETTE.length),
+      u: rng(),
+    });
+  }
+
+  // 5. Perimeter Meadow Flora
+  const perimeterCount = Math.floor(40 + zone.n * 2.2);
+  for (let i = 0; i < perimeterCount; i++) {
+    const angle = (i / perimeterCount) * Math.PI * 2 + (rng() - 0.5) * 0.2;
+    const rad = half - 1.5 + (rng() - 0.5) * 1.3;
+    const h = 0.38 + rng() * 0.5;
+    data.grassClusters.push({
+      x: Math.cos(angle) * rad,
+      y: FLAT_TILE_TOP + h / 2,
+      z: Math.sin(angle) * rad,
+      sx: 0.1,
+      sy: h,
+      sz: 0.1,
+      rx: (rng() - 0.5) * 0.22,
+      ry: rng() * Math.PI,
+      rz: (rng() - 0.5) * 0.22,
+      c: pickIndex(rng, GRASS_SHADES.length),
+      u: rng(),
+    });
   }
 
   return data;
@@ -268,7 +349,7 @@ function InstancedBatch({
   items,
   colors,
   geometry,
-  roughness = 0.8,
+  roughness = 0.75,
 }: {
   items: InstanceItem[];
   colors: string[];
@@ -283,7 +364,11 @@ function InstancedBatch({
     for (let i = 0; i < items.length; i++) {
       const v = items[i];
       tmp.position.set(v.x, v.y, v.z);
-      tmp.scale.set(Math.max(0.001, v.sx), Math.max(0.001, v.sy), Math.max(0.001, v.sz));
+      tmp.scale.set(
+        Math.max(0.001, v.sx),
+        Math.max(0.001, v.sy),
+        Math.max(0.001, v.sz)
+      );
       tmp.rotation.set(v.rx || 0, v.ry || 0, v.rz || 0);
       tmp.updateMatrix();
       m.setMatrixAt(i, tmp.matrix);
@@ -309,7 +394,11 @@ function InstancedBatch({
   );
 }
 
-function CanopyMorphMesh({
+/**
+ * Photorealistic multi-layered Sakura Leaf-Cloud.
+ * Blends organic 3D leaf clusters down to the precise QR matrix plane on flatten.
+ */
+function BotanicalCanopyMesh({
   items,
   colors,
   geometry,
@@ -317,7 +406,7 @@ function CanopyMorphMesh({
   density,
   dark,
 }: {
-  items: CanopyBlossom[];
+  items: CanopyLeafNode[];
   colors: THREE.Color[];
   geometry: THREE.BufferGeometry;
   seed: number;
@@ -364,7 +453,7 @@ function CanopyMorphMesh({
       );
 
       const sxz = v.os + ((v.pale ? 0.0001 : 0.96) - v.os) * q;
-      const sy = (v.os * 0.6) + ((v.pale ? 0.0001 : 0.16) - (v.os * 0.6)) * q;
+      const sy = v.os * 0.55 + ((v.pale ? 0.0001 : 0.16) - v.os * 0.55) * q;
 
       tmp.scale.set(
         Math.max(0.0001, sxz * grow),
@@ -399,7 +488,7 @@ function CanopyMorphMesh({
       receiveShadow
       frustumCulled={false}
     >
-      <meshStandardMaterial roughness={0.65} />
+      <meshStandardMaterial roughness={0.6} />
     </instancedMesh>
   );
 }
@@ -424,18 +513,26 @@ export default function Tree({
     intro.current = 0;
   }, [seed]);
 
+  // Geometric Primitives tuned for natural foliage & organic bark
   const trunkGeo = useMemo(() => new THREE.CylinderGeometry(0.5, 0.5, 1, 14), []);
-  const branchGeo = useMemo(() => new THREE.BoxGeometry(1, 1, 1), []);
-  const petalDiscGeo = useMemo(() => new THREE.CylinderGeometry(0.52, 0.52, 0.12, 6), []);
-  const bladeGeo = useMemo(() => new THREE.ConeGeometry(0.1, 1, 4), []);
+  const branchGeo = useMemo(() => new THREE.CylinderGeometry(0.35, 0.45, 1, 6), []);
+  // 6-sided disc creating natural overlapping petal sheets
+  const petalDiscGeo = useMemo(() => new THREE.CylinderGeometry(0.48, 0.48, 0.12, 6), []);
+  const bladeGeo = useMemo(() => new THREE.ConeGeometry(0.09, 1, 4), []);
 
-  const data = useMemo(() => generateAdaptiveBulkySakura(seed, grid, zone), [seed, grid, zone]);
+  const data = useMemo(
+    () => generateBotanicalSakura(seed, grid, zone),
+    [seed, grid, zone]
+  );
 
   const canopyColors = useMemo(
-    () => SAKURA_COLORS.map((c) => new THREE.Color(c)),
+    () => SAKURA_PALETTE.map((c) => new THREE.Color(c)),
     []
   );
-  const qrDark = useMemo(() => new THREE.Color(palette?.qrDark || "#d64f64"), [palette]);
+  const qrDark = useMemo(
+    () => new THREE.Color(palette?.qrDark || "#d64f64"),
+    [palette]
+  );
 
   useFrame((_, rawDt) => {
     const g = group.current;
@@ -453,40 +550,39 @@ export default function Tree({
   return (
     <>
       <group ref={group}>
+        {/* Curving Natural Trunk */}
         <InstancedBatch
-          items={data.trunk}
-          colors={BARK_COLORS}
+          items={data.trunkMeshItems}
+          colors={BARK_SHADES}
           geometry={trunkGeo}
           roughness={0.92}
         />
+        {/* Branch Hierarchy */}
         <InstancedBatch
-          items={data.branches}
-          colors={BRANCH_COLOR}
+          items={data.branchMeshItems}
+          colors={BRANCH_SHADES}
           geometry={branchGeo}
-          roughness={0.9}
+          roughness={0.88}
         />
+        {/* Scattered Ground Petals */}
         <InstancedBatch
-          items={data.fallenPetals}
-          colors={SAKURA_COLORS}
+          items={data.groundPetals}
+          colors={SAKURA_PALETTE}
           geometry={petalDiscGeo}
-          roughness={0.6}
+          roughness={0.58}
         />
+        {/* Perimeter Meadow Grass */}
         <InstancedBatch
-          items={data.grassEdges}
-          colors={GRASS_COLORS}
+          items={data.grassClusters}
+          colors={GRASS_SHADES}
           geometry={bladeGeo}
           roughness={0.85}
         />
-        <InstancedBatch
-          items={data.pinkReeds}
-          colors={REED_COLORS}
-          geometry={bladeGeo}
-          roughness={0.7}
-        />
       </group>
 
-      <CanopyMorphMesh
-        items={data.canopy}
+      {/* Volumetric Sakura Blossom Crown */}
+      <BotanicalCanopyMesh
+        items={data.canopyNodes}
         colors={canopyColors}
         geometry={petalDiscGeo}
         seed={seed}
