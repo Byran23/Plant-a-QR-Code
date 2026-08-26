@@ -20,7 +20,7 @@ interface InstanceItem {
   u: number;
 }
 
-interface CanopyFacetedModule {
+interface CanopyBlossom {
   ox: number;
   oy: number;
   oz: number;
@@ -35,283 +35,218 @@ interface CanopyFacetedModule {
   u: number;
 }
 
-interface DioramaData {
+interface TreeSceneData {
   trunk: InstanceItem[];
   branches: InstanceItem[];
-  canopy: CanopyFacetedModule[];
-  shrubs: InstanceItem[];
-  flowerStems: InstanceItem[];
-  flowerHeads: InstanceItem[];
-  groundPebbles: InstanceItem[];
-  birds: InstanceItem[];
-  clouds: InstanceItem[];
+  canopy: CanopyBlossom[];
+  fallenPetals: InstanceItem[];
+  grassEdges: InstanceItem[];
+  pinkReeds: InstanceItem[];
 }
 
 const FLAT_TILE_TOP = 0.14;
 
-// Color Palette matching the Low-Poly Sakura Diorama
-const SAKURA_BLOSSOM_COLORS = [
-  "#f7a8b8", // Soft Pink
-  "#f497a9", // Medium Blossom Pink
-  "#fbc4cf", // Pale Highlight Pink
-  "#e88599", // Shadow/Deep Pink
-  "#fddde3", // Light Petal White-Pink
+const SAKURA_COLORS = [
+  "#ffb3c6",
+  "#ff9ebb",
+  "#ffc5d3",
+  "#fa8fa8",
+  "#ffdce5",
+  "#ffa0b8",
 ];
 
-const TRUNK_WOOD_COLOR = ["#2b1810", "#21120b"];
-const SHRUB_COLORS = ["#2d5a3d", "#366a47", "#234730"];
-const FLOWER_HEAD_COLORS = ["#f5df6d", "#f0d24f", "#fced93"];
-const STEM_COLOR = ["#437841"];
-const PEBBLE_COLORS = ["#c2c7b8", "#a6ab9c"];
-const BIRD_COLORS = ["#334155", "#475569"];
-const CLOUD_COLOR = ["#ffffff"];
+const BARK_COLORS = ["#5c4033", "#43281c", "#6b493b"];
+const BRANCH_COLOR = ["#43281c"];
+const GRASS_COLORS = ["#82bf4f", "#94ce5e", "#71ab41"];
+const REED_COLORS = ["#df8db0", "#ebb0cb", "#cf779f"];
 
-function generateSakuraDiorama(
-  seed: number,
-  grid: QRGrid,
-  zone: ForestZone
-): DioramaData {
+function generateTallBulkySakura(seed: number, grid: QRGrid, zone: ForestZone): TreeSceneData {
   const rng = mulberry32(seed);
-  const data: DioramaData = {
+  const data: TreeSceneData = {
     trunk: [],
     branches: [],
     canopy: [],
-    shrubs: [],
-    flowerStems: [],
-    flowerHeads: [],
-    groundPebbles: [],
-    birds: [],
-    clouds: [],
+    fallenPetals: [],
+    grassEdges: [],
+    pinkReeds: [],
   };
 
   const half = (grid.total - 1) / 2;
-  const H = 4.8;
 
-  // 1. Organic Tapered Low-Poly Trunk
-  const trunkLevels = 10;
-  let leanX = 0;
-  let leanZ = 0;
-  for (let i = 0; i < trunkLevels; i++) {
-    const t = i / trunkLevels;
-    const radius = THREE.MathUtils.lerp(1.1, 0.48, Math.pow(t, 0.7));
-    leanX += (rng() - 0.5) * 0.08;
-    leanZ += (rng() - 0.5) * 0.08;
+  // 1. Taller & Substantially Thicker Trunk (Increased height and wider base radius)
+  const H = 10.4;
+  const numRings = 20;
+  const ringH = (H * 0.46) / numRings;
+
+  for (let i = 0; i < numRings; i++) {
+    const t = i / numRings;
+    const r = THREE.MathUtils.lerp(1.75, 0.88, Math.pow(t, 0.72));
     data.trunk.push({
-      x: leanX,
-      y: (i + 0.5) * (H / trunkLevels),
-      z: leanZ,
-      sx: radius * 2,
-      sy: (H / trunkLevels) * 1.05,
-      sz: radius * 2,
-      rx: (rng() - 0.5) * 0.1,
-      ry: rng() * Math.PI,
-      rz: (rng() - 0.5) * 0.1,
-      c: 0,
+      x: 0,
+      y: i * ringH + ringH * 0.5,
+      z: 0,
+      sx: r * 2,
+      sy: ringH * 0.96,
+      sz: r * 2,
+      c: i % 2 === 0 ? 0 : 1,
       u: rng(),
     });
   }
 
-  // 2. Thick Radiating Branches
-  const branchCount = 10;
-  const branchBaseY = H * 0.48;
-  for (let i = 0; i < branchCount; i++) {
-    const angle = (i / branchCount) * Math.PI * 2 + (rng() - 0.5) * 0.35;
-    const length = 2.4 + rng() * 1.8;
-    const slope = 0.22 + rng() * 0.38;
-    const steps = Math.ceil(length * 2.5);
+  // 2. Multi-tiered, Dense Branch Scaffolding
+  const numBranches = 16;
+  const branchStartY = H * 0.38;
+  for (let i = 0; i < numBranches; i++) {
+    const angle = (i / numBranches) * Math.PI * 2 + (rng() - 0.5) * 0.4;
+    const length = 3.2 + rng() * 2.4;
+    const slope = 0.35 + rng() * 0.45;
+    const steps = Math.ceil(length * 3.2);
 
-    const dirX = Math.cos(angle);
-    const dirZ = Math.sin(angle);
-    const inv = 1 / (Math.hypot(dirX, slope, dirZ) || 1);
+    const dx = Math.cos(angle);
+    const dz = Math.sin(angle);
+    const inv = 1 / (Math.hypot(dx, slope, dz) || 1);
 
     let px = 0;
-    let py = branchBaseY + rng() * 0.6;
+    let py = branchStartY + rng() * 1.8;
     let pz = 0;
 
     for (let s = 0; s < steps; s++) {
-      px += dirX * inv * 0.38;
-      py += slope * inv * 0.38;
-      pz += dirZ * inv * 0.38;
-      const thick = Math.max(0.18, 0.44 - (s / steps) * 0.28);
+      px += dx * inv * 0.34;
+      py += slope * inv * 0.34;
+      pz += dz * inv * 0.34;
+      const thick = Math.max(0.18, 0.52 - (s / steps) * 0.34);
       data.branches.push({
         x: px,
         y: py,
         z: pz,
         sx: thick,
-        sy: thick * 1.2,
+        sy: thick * 1.25,
         sz: thick,
-        rx: (rng() - 0.5) * 0.15,
+        rx: (rng() - 0.5) * 0.12,
         ry: angle,
-        rz: (rng() - 0.5) * 0.15,
+        rz: (rng() - 0.5) * 0.12,
         c: 0,
         u: rng(),
       });
     }
   }
 
-  // 3. Umbrella-Shaped Low-Poly Canopy Crown
-  const crownY = H + 0.5;
-  const maxCrownRadius = Math.max(1, zone.n * 0.66);
+  // 3. Voluminous, Lofty Blossom Canopy (Larger radius & elevated peak)
+  const crownBaseY = H * 0.7;
+  const crownRadius = Math.max(1, zone.n * 0.78);
 
-  const pushCanopyFacet = (
-    mx: number,
-    mz: number,
-    pale: boolean,
-    isDrooping = false
-  ) => {
-    const distRatio = Math.min(1, Math.hypot(mx, mz) / maxCrownRadius);
-    // Broad, flat-domed silhouette matching the reference
-    const dome = Math.sqrt(Math.max(0, 1 - distRatio * distRatio)) * 1.8;
+  const pushPetalCluster = (mx: number, mz: number, pale: boolean, isDroop = false) => {
+    const dist = Math.min(1, Math.hypot(mx, mz) / crownRadius);
+    // Tall, puffy crown profile
+    const domeHeight = Math.pow(Math.max(0, 1 - dist), 0.65) * 4.6;
 
-    const oy = isDrooping
-      ? branchBaseY + 0.3 + (rng() - 0.5) * 0.6
-      : crownY + dome + (rng() - 0.5) * 0.65;
+    const oy = isDroop
+      ? branchStartY + 0.3 + rng() * 1.4
+      : crownBaseY + domeHeight + (rng() - 0.5) * 1.1;
 
     data.canopy.push({
-      ox: mx * (isDrooping ? 1.08 : 0.96) + (rng() - 0.5) * 0.8,
+      ox: mx * (isDroop ? 1.08 : 0.94) + (rng() - 0.5) * 0.85,
       oy,
-      oz: mz * (isDrooping ? 1.08 : 0.96) + (rng() - 0.5) * 0.8,
-      os: isDrooping ? 0.8 + rng() * 0.45 : 1.25 + rng() * 0.75,
+      oz: mz * (isDroop ? 1.08 : 0.94) + (rng() - 0.5) * 0.85,
+      os: isDroop ? 0.85 + rng() * 0.45 : 1.15 + rng() * 0.85,
       fx: mx,
       fz: mz,
-      ci: pickIndex(rng, SAKURA_BLOSSOM_COLORS.length),
+      ci: pickIndex(rng, SAKURA_COLORS.length),
       pale,
-      rotX: rng() * Math.PI * 2,
+      rotX: (rng() - 0.5) * 0.8,
       rotY: rng() * Math.PI * 2,
-      rotZ: rng() * Math.PI * 2,
+      rotZ: (rng() - 0.5) * 0.8,
       u: rng(),
     });
   };
 
-  // QR Modules in tree canopy
+  // QR Code Modules mapped in tree crown
   let qrModuleCount = 0;
   for (let r = 0; r < zone.n; r++) {
     for (let c = 0; c < zone.n; c++) {
       const gr = zone.z0 + r;
       const gc = zone.x0 + c;
       if (grid?.data && grid.data[gr * grid.total + gc] === 1) {
-        pushCanopyFacet(gc - half, gr - half, false);
+        pushPetalCluster(gc - half, gr - half, false);
         qrModuleCount++;
       }
     }
   }
 
-  // Dense Low-Poly Faceted Puffs filling the crown volume
-  const fillerCount = Math.ceil(qrModuleCount * 2.8);
-  for (let i = 0; i < fillerCount; i++) {
+  // Extra voluminous blossom puffs for high foliage density
+  const fillers = Math.ceil(qrModuleCount * 3.4);
+  for (let i = 0; i < fillers; i++) {
     const angle = rng() * Math.PI * 2;
-    const rad = Math.sqrt(rng()) * maxCrownRadius * 0.96;
-    pushCanopyFacet(Math.cos(angle) * rad, Math.sin(angle) * rad, true);
+    const rad = Math.sqrt(rng()) * crownRadius * 0.98;
+    pushPetalCluster(Math.cos(angle) * rad, Math.sin(angle) * rad, true);
   }
 
-  // Hanging blossom fringe
-  const droopCount = 24 + Math.floor(rng() * 8);
-  for (let i = 0; i < droopCount; i++) {
-    const angle = (i / droopCount) * Math.PI * 2 + (rng() - 0.5) * 0.3;
-    const rad = maxCrownRadius * (0.7 + rng() * 0.28);
-    pushCanopyFacet(Math.cos(angle) * rad, Math.sin(angle) * rad, true, true);
+  // Drooping hanging flower tendrils
+  const droops = 28 + Math.floor(rng() * 10);
+  for (let i = 0; i < droops; i++) {
+    const angle = (i / droops) * Math.PI * 2 + (rng() - 0.5) * 0.35;
+    const rad = crownRadius * (0.68 + rng() * 0.3);
+    pushPetalCluster(Math.cos(angle) * rad, Math.sin(angle) * rad, true, true);
   }
 
-  // 4. Surrounding Dark Green Shrub Clusters & Yellow Wildflowers
-  const shrubCount = 42 + Math.floor(rng() * 14);
-  for (let i = 0; i < shrubCount; i++) {
+  // 4. Ground Fallen Petals
+  const petalCount = 70 + Math.floor(rng() * 25);
+  for (let i = 0; i < petalCount; i++) {
     const angle = rng() * Math.PI * 2;
-    const rad = (zone.n * 0.48) + Math.sqrt(rng()) * (half - (zone.n * 0.48) - 1.2);
-    const sx = 0.55 + rng() * 0.65;
-    const sy = 0.45 + rng() * 0.55;
-    const sz = 0.55 + rng() * 0.65;
-    const x = Math.cos(angle) * rad + (rng() - 0.5) * 0.5;
-    const z = Math.sin(angle) * rad + (rng() - 0.5) * 0.5;
+    const rad = 0.6 + Math.sqrt(rng()) * (half - 1.2);
+    data.fallenPetals.push({
+      x: Math.cos(angle) * rad + (rng() - 0.5) * 0.35,
+      y: FLAT_TILE_TOP + 0.015,
+      z: Math.sin(angle) * rad + (rng() - 0.5) * 0.35,
+      sx: 0.26 + rng() * 0.2,
+      sy: 0.02,
+      sz: 0.26 + rng() * 0.2,
+      ry: rng() * Math.PI * 2,
+      c: pickIndex(rng, SAKURA_COLORS.length),
+      u: rng(),
+    });
+  }
 
-    data.shrubs.push({
+  // 5. Perimeter Vegetation
+  const perimeterCount = 42 + Math.floor(rng() * 12);
+  for (let i = 0; i < perimeterCount; i++) {
+    const angle = (i / perimeterCount) * Math.PI * 2 + (rng() - 0.5) * 0.2;
+    const rad = half - 1.4 + (rng() - 0.5) * 1.2;
+    const h = 0.4 + rng() * 0.55;
+    const x = Math.cos(angle) * rad;
+    const z = Math.sin(angle) * rad;
+
+    data.grassEdges.push({
       x,
-      y: FLAT_TILE_TOP + sy * 0.45,
+      y: FLAT_TILE_TOP + h / 2,
       z,
-      sx,
-      sy,
-      sz,
-      rx: (rng() - 0.5) * 0.3,
+      sx: 0.1,
+      sy: h,
+      sz: 0.1,
+      rx: (rng() - 0.5) * 0.2,
       ry: rng() * Math.PI,
-      rz: (rng() - 0.5) * 0.3,
-      c: pickIndex(rng, SHRUB_COLORS.length),
+      rz: (rng() - 0.5) * 0.2,
+      c: pickIndex(rng, GRASS_COLORS.length),
       u: rng(),
     });
 
-    // Yellow Wildflowers nestled in the grass/shrubs
-    if (rng() < 0.6) {
-      const stemH = 0.4 + rng() * 0.35;
-      const fx = x + (rng() - 0.5) * 0.4;
-      const fz = z + (rng() - 0.5) * 0.4;
-      data.flowerStems.push({
-        x: fx,
-        y: FLAT_TILE_TOP + stemH / 2,
-        z: fz,
-        sx: 0.06,
-        sy: stemH,
-        sz: 0.06,
-        c: 0,
-        u: rng(),
-      });
-      data.flowerHeads.push({
-        x: fx,
-        y: FLAT_TILE_TOP + stemH + 0.06,
-        z: fz,
-        sx: 0.18,
-        sy: 0.18,
-        sz: 0.18,
-        rx: (rng() - 0.5) * 0.2,
+    if (rng() < 0.45) {
+      const rh = h * (0.8 + rng() * 0.35);
+      data.pinkReeds.push({
+        x: x + (rng() - 0.5) * 0.3,
+        y: FLAT_TILE_TOP + rh / 2,
+        z: z + (rng() - 0.5) * 0.3,
+        sx: 0.08,
+        sy: rh,
+        sz: 0.08,
+        rx: (rng() - 0.5) * 0.25,
         ry: rng() * Math.PI,
-        rz: (rng() - 0.5) * 0.2,
-        c: pickIndex(rng, FLOWER_HEAD_COLORS.length),
+        rz: (rng() - 0.5) * 0.25,
+        c: pickIndex(rng, REED_COLORS.length),
         u: rng(),
       });
     }
   }
-
-  // Small ground stones / pebbles
-  const pebbleCount = 28 + Math.floor(rng() * 12);
-  for (let i = 0; i < pebbleCount; i++) {
-    const angle = rng() * Math.PI * 2;
-    const rad = 1.0 + Math.sqrt(rng()) * (half - 1.8);
-    const s = 0.2 + rng() * 0.25;
-    data.groundPebbles.push({
-      x: Math.cos(angle) * rad,
-      y: FLAT_TILE_TOP + s * 0.3,
-      z: Math.sin(angle) * rad,
-      sx: s * 1.2,
-      sy: s * 0.6,
-      sz: s * 1.1,
-      ry: rng() * Math.PI,
-      c: pickIndex(rng, PEBBLE_COLORS.length),
-      u: rng(),
-    });
-  }
-
-  // 5. Floating Diorama Elements: Low-Poly Birds & Clouds
-  // Flying birds over the canopy
-  const birdCount = 3;
-  for (let i = 0; i < birdCount; i++) {
-    data.birds.push({
-      x: -3.5 + i * 2.6 + (rng() - 0.5) * 0.8,
-      y: H + 3.8 + (rng() - 0.5) * 0.9,
-      z: -2.0 + (rng() - 0.5) * 2.0,
-      sx: 0.35,
-      sy: 0.08,
-      sz: 0.22,
-      rx: 0.2,
-      ry: -0.6 + (rng() - 0.5) * 0.4,
-      rz: 0.15,
-      c: 0,
-      u: rng(),
-    });
-  }
-
-  // Blocky floating clouds
-  data.clouds.push(
-    { x: 5.5, y: H + 5.2, z: -5.0, sx: 2.8, sy: 1.4, sz: 1.8, c: 0, u: 0.1 },
-    { x: 6.8, y: H + 5.8, z: -4.8, sx: 2.0, sy: 1.8, sz: 1.6, c: 0, u: 0.2 },
-    { x: -6.0, y: H + 6.0, z: -4.0, sx: 3.2, sy: 1.6, sz: 2.0, c: 0, u: 0.3 }
-  );
 
   return data;
 }
@@ -321,18 +256,16 @@ function generateSakuraDiorama(
 const tmp = new THREE.Object3D();
 const col = new THREE.Color();
 
-function LowPolyInstancedGroup({
+function InstancedBatch({
   items,
   colors,
   geometry,
   roughness = 0.8,
-  flatShading = true,
 }: {
   items: InstanceItem[];
   colors: string[];
   geometry: THREE.BufferGeometry;
   roughness?: number;
-  flatShading?: boolean;
 }) {
   const ref = useRef<THREE.InstancedMesh>(null);
 
@@ -342,11 +275,7 @@ function LowPolyInstancedGroup({
     for (let i = 0; i < items.length; i++) {
       const v = items[i];
       tmp.position.set(v.x, v.y, v.z);
-      tmp.scale.set(
-        Math.max(0.001, v.sx),
-        Math.max(0.001, v.sy),
-        Math.max(0.001, v.sz)
-      );
+      tmp.scale.set(Math.max(0.001, v.sx), Math.max(0.001, v.sy), Math.max(0.001, v.sz));
       tmp.rotation.set(v.rx || 0, v.ry || 0, v.rz || 0);
       tmp.updateMatrix();
       m.setMatrixAt(i, tmp.matrix);
@@ -367,15 +296,12 @@ function LowPolyInstancedGroup({
       receiveShadow
       frustumCulled={false}
     >
-      <meshStandardMaterial roughness={roughness} flatShading={flatShading} />
+      <meshStandardMaterial roughness={roughness} />
     </instancedMesh>
   );
 }
 
-/**
- * Low-Poly Faceted Blossom Canopy with smooth morphing to flat QR matrix
- */
-function LowPolyCanopyMesh({
+function CanopyMorphMesh({
   items,
   colors,
   geometry,
@@ -383,7 +309,7 @@ function LowPolyCanopyMesh({
   density,
   dark,
 }: {
-  items: CanopyFacetedModule[];
+  items: CanopyBlossom[];
   colors: THREE.Color[];
   geometry: THREE.BufferGeometry;
   seed: number;
@@ -423,16 +349,14 @@ function LowPolyCanopyMesh({
       const v = visible[i];
       const grow = easeOutBack(clamp01((s.intro * 1.35 - v.u * 0.35) / 0.55));
 
-      // Morph from organic 3D cloud to precise module position
       tmp.position.set(
         v.ox + (v.fx - v.ox) * q,
         v.oy + (flatY - v.oy) * q,
         v.oz + (v.fz - v.oz) * q
       );
 
-      // Low-poly faceted blob scale -> flat square tile scale
       const sxz = v.os + ((v.pale ? 0.0001 : 0.96) - v.os) * q;
-      const sy = v.os * 0.7 + ((v.pale ? 0.0001 : 0.16) - v.os * 0.7) * q;
+      const sy = (v.os * 0.6) + ((v.pale ? 0.0001 : 0.16) - (v.os * 0.6)) * q;
 
       tmp.scale.set(
         Math.max(0.0001, sxz * grow),
@@ -440,8 +364,11 @@ function LowPolyCanopyMesh({
         Math.max(0.0001, sxz * grow)
       );
 
-      // Unwind 3D random facet rotations into flat planar alignment
-      tmp.rotation.set(v.rotX * (1 - q), v.rotY * (1 - q), v.rotZ * (1 - q));
+      tmp.rotation.set(
+        v.rotX * (1 - q),
+        v.rotY * (1 - q),
+        v.rotZ * (1 - q)
+      );
 
       tmp.updateMatrix();
       m.setMatrixAt(i, tmp.matrix);
@@ -464,7 +391,7 @@ function LowPolyCanopyMesh({
       receiveShadow
       frustumCulled={false}
     >
-      <meshStandardMaterial roughness={0.6} flatShading />
+      <meshStandardMaterial roughness={0.65} />
     </instancedMesh>
   );
 }
@@ -489,31 +416,18 @@ export default function Tree({
     intro.current = 0;
   }, [seed]);
 
-  // Geometries for the low-poly look:
-  // 1. Icosahedron (subdivision 0) produces the signature faceted gem/foliage clusters
-  const facetedGeo = useMemo(() => new THREE.IcosahedronGeometry(0.68, 0), []);
-  const trunkGeo = useMemo(() => new THREE.CylinderGeometry(0.45, 0.55, 1, 7), []);
-  const branchGeo = useMemo(() => new THREE.CylinderGeometry(0.25, 0.35, 1, 5), []);
-  const boxGeo = useMemo(() => new THREE.BoxGeometry(1, 1, 1), []);
-  const flowerHeadGeo = useMemo(() => new THREE.DodecahedronGeometry(0.12, 0), []);
+  const trunkGeo = useMemo(() => new THREE.CylinderGeometry(0.5, 0.5, 1, 14), []);
+  const branchGeo = useMemo(() => new THREE.BoxGeometry(1, 1, 1), []);
+  const petalDiscGeo = useMemo(() => new THREE.CylinderGeometry(0.52, 0.52, 0.12, 6), []);
+  const bladeGeo = useMemo(() => new THREE.ConeGeometry(0.1, 1, 4), []);
 
-  const data = useMemo(
-    () => generateSakuraDiorama(seed, grid, zone),
-    [seed, grid, zone]
-  );
+  const data = useMemo(() => generateTallBulkySakura(seed, grid, zone), [seed, grid, zone]);
 
   const canopyColors = useMemo(
-    () =>
-      (palette?.foliage?.length ? palette.foliage : SAKURA_BLOSSOM_COLORS).map(
-        (c) => new THREE.Color(c)
-      ),
-    [palette]
+    () => SAKURA_COLORS.map((c) => new THREE.Color(c)),
+    []
   );
-
-  const qrDark = useMemo(
-    () => new THREE.Color(palette?.qrDark || "#c84e62"),
-    [palette]
-  );
+  const qrDark = useMemo(() => new THREE.Color(palette?.qrDark || "#d64f64"), [palette]);
 
   useFrame((_, rawDt) => {
     const g = group.current;
@@ -530,71 +444,49 @@ export default function Tree({
 
   return (
     <>
-      {/* Diorama Environment: Trunk, Shrubs, Flowers, Birds & Clouds */}
       <group ref={group}>
-        {/* Faceted Low-Poly Trunk */}
-        <LowPolyInstancedGroup
+        {/* Substantial Cylindrical Trunk */}
+        <InstancedBatch
           items={data.trunk}
-          colors={TRUNK_WOOD_COLOR}
+          colors={BARK_COLORS}
           geometry={trunkGeo}
           roughness={0.92}
         />
-        {/* Angular Scaffolding Branches */}
-        <LowPolyInstancedGroup
+        {/* Full-coverage Branch Network */}
+        <InstancedBatch
           items={data.branches}
-          colors={TRUNK_WOOD_COLOR}
+          colors={BRANCH_COLOR}
           geometry={branchGeo}
           roughness={0.9}
         />
-        {/* Surrounding Dark Green Shrubs */}
-        <LowPolyInstancedGroup
-          items={data.shrubs}
-          colors={SHRUB_COLORS}
-          geometry={facetedGeo}
-          roughness={0.75}
-        />
-        {/* Flower Stems */}
-        <LowPolyInstancedGroup
-          items={data.flowerStems}
-          colors={STEM_COLOR}
-          geometry={boxGeo}
-          roughness={0.9}
-        />
-        {/* Yellow Flower Heads */}
-        <LowPolyInstancedGroup
-          items={data.flowerHeads}
-          colors={FLOWER_HEAD_COLORS}
-          geometry={flowerHeadGeo}
+        {/* Fallen Ground Petals */}
+        <InstancedBatch
+          items={data.fallenPetals}
+          colors={SAKURA_COLORS}
+          geometry={petalDiscGeo}
           roughness={0.6}
         />
-        {/* Ground Pebbles */}
-        <LowPolyInstancedGroup
-          items={data.groundPebbles}
-          colors={PEBBLE_COLORS}
-          geometry={facetedGeo}
+        {/* Perimeter Grass Edging */}
+        <InstancedBatch
+          items={data.grassEdges}
+          colors={GRASS_COLORS}
+          geometry={bladeGeo}
           roughness={0.85}
         />
-        {/* Floating Low-Poly Birds */}
-        <LowPolyInstancedGroup
-          items={data.birds}
-          colors={BIRD_COLORS}
-          geometry={boxGeo}
-          roughness={0.5}
-        />
-        {/* Fluffy Low-Poly Clouds */}
-        <LowPolyInstancedGroup
-          items={data.clouds}
-          colors={CLOUD_COLOR}
-          geometry={boxGeo}
-          roughness={0.95}
+        {/* Perimeter Pink Accent Flora */}
+        <InstancedBatch
+          items={data.pinkReeds}
+          colors={REED_COLORS}
+          geometry={bladeGeo}
+          roughness={0.7}
         />
       </group>
 
-      {/* Faceted Blossom Canopy (Morphs cleanly into QR Matrix Tiles) */}
-      <LowPolyCanopyMesh
+      {/* Lofty, Bulky Blossom Canopy */}
+      <CanopyMorphMesh
         items={data.canopy}
         colors={canopyColors}
-        geometry={facetedGeo}
+        geometry={petalDiscGeo}
         seed={seed}
         density={palette?.foliageDensity ?? 1.0}
         dark={qrDark}
