@@ -1,79 +1,88 @@
-import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { morph, smooth01, clamp01, easeOutBack } from "./shared";
 
-// Precision stroke coordinates that trace the letters B -> R -> C in order
-const BRC_STROKE_POINTS: [number, number, number][] = [
-  // --- Letter 'B' ---
-  [-3.8, -0.9, 0],
-  [-3.8, -0.45, 0],
-  [-3.8, 0.0, 0],
-  [-3.8, 0.45, 0],
-  [-3.8, 0.9, 0],
-  [-3.3, 0.9, 0],
-  [-2.85, 0.65, 0],
-  [-3.3, 0.45, 0],
-  [-2.8, 0.2, 0],
-  [-3.3, -0.9, 0],
-  [-3.8, -0.9, 0],
+// Generate high-resolution canvas texture for the trailing flag banner
+function createFlagTexture(text: string) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 1024;
+  canvas.height = 256;
+  const ctx = canvas.getContext("2d");
 
-  // --- Letter 'R' ---
-  [-1.6, -0.9, 0],
-  [-1.6, -0.45, 0],
-  [-1.6, 0.0, 0],
-  [-1.6, 0.45, 0],
-  [-1.6, 0.9, 0],
-  [-1.15, 0.9, 0],
-  [-0.7, 0.55, 0],
-  [-1.15, 0.2, 0],
-  [-0.95, -0.35, 0],
-  [-0.65, -0.9, 0],
+  if (ctx) {
+    // Flag banner gradient background
+    const grad = ctx.createLinearGradient(0, 0, 1024, 0);
+    grad.addColorStop(0, "#ffffff");
+    grad.addColorStop(0.5, "#fff1f2");
+    grad.addColorStop(1, "#ffe4e6");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 1024, 256);
 
-  // --- Letter 'C' ---
-  [1.7, 0.75, 0],
-  [1.25, 0.9, 0],
-  [0.65, 0.65, 0],
-  [0.45, 0.2, 0],
-  [0.45, -0.2, 0],
-  [0.65, -0.65, 0],
-  [1.25, -0.9, 0],
-  [1.7, -0.75, 0],
-];
+    // Decorative top & bottom red borders
+    ctx.fillStyle = "#e11d48";
+    ctx.fillRect(0, 0, 1024, 18);
+    ctx.fillRect(0, 238, 1024, 18);
 
-interface SmokePuff {
-  baseX: number;
-  baseY: number;
-  baseZ: number;
-  strokeIndex: number;
-  scaleVar: number;
-  rotSpeed: number;
-  phase: number;
+    // Golden accent inner borders
+    ctx.fillStyle = "#f59e0b";
+    ctx.fillRect(0, 18, 1024, 8);
+    ctx.fillRect(0, 230, 1024, 8);
+
+    // Bold Typography
+    ctx.font = "bold 96px 'Segoe UI', Roboto, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+
+    // Text Shadow
+    ctx.fillStyle = "rgba(159, 18, 57, 0.25)";
+    ctx.fillText(text, 516, 134);
+
+    // Main Text
+    ctx.fillStyle = "#9f1239";
+    ctx.fillText(text, 512, 130);
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.ClampToEdgeWrapping;
+  texture.wrapT = THREE.ClampToEdgeWrapping;
+  texture.needsUpdate = true;
+  return texture;
 }
 
 export default function Superhero({
   orbit = 16,
-  alt = 16,
+  alt = 18,
 }: {
   orbit?: number;
   alt?: number;
 }) {
   const heroGroup = useRef<THREE.Group>(null);
   const capeRef = useRef<THREE.Mesh>(null);
-  const smokeMeshRef = useRef<THREE.InstancedMesh>(null);
+  const flagMeshRef = useRef<THREE.Mesh>(null);
   const intro = useRef(0);
 
-  // Voxel & Smoke Geometries
+  // Geometries
   const boxGeo = useMemo(() => new THREE.BoxGeometry(1, 1, 1), []);
-  const smokePuffGeo = useMemo(() => new THREE.DodecahedronGeometry(0.55, 1), []);
+  const cylinderGeo = useMemo(() => new THREE.CylinderGeometry(1, 1, 1, 16), []);
+  // Segmented plane geometry to allow organic wave/ripple deformation
+  const flagGeo = useMemo(() => new THREE.PlaneGeometry(6.4, 1.6, 28, 6), []);
 
-  // Character Materials
+  // Textures
+  const flagTex = useMemo(() => createFlagTexture("Bryan R.C."), []);
+
+  // Materials
   const suitBlueMat = useMemo(
     () => new THREE.MeshStandardMaterial({ color: "#1d4ed8", roughness: 0.4 }),
     [],
   );
   const capeRedMat = useMemo(
-    () => new THREE.MeshStandardMaterial({ color: "#dc2626", roughness: 0.5, side: THREE.DoubleSide }),
+    () =>
+      new THREE.MeshStandardMaterial({
+        color: "#dc2626",
+        roughness: 0.5,
+        side: THREE.DoubleSide,
+      }),
     [],
   );
   const skinMat = useMemo(
@@ -81,71 +90,67 @@ export default function Superhero({
     [],
   );
   const goldMat = useMemo(
-    () => new THREE.MeshStandardMaterial({ color: "#f59e0b", roughness: 0.2, metalness: 0.8 }),
-    [],
-  );
-
-  // Soft, billowy skywriting smoke material
-  const smokeMat = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
-        color: "#ffffff",
-        roughness: 1.0,
-        metalness: 0,
-        transparent: true,
-        opacity: 0.58,
-        emissive: "#fff8fa",
-        emissiveIntensity: 0.12,
-        depthWrite: false,
+        color: "#f59e0b",
+        roughness: 0.2,
+        metalness: 0.8,
+      }),
+    [],
+  );
+  const flagMat = useMemo(
+    () =>
+      new THREE.MeshStandardMaterial({
+        map: flagTex,
+        roughness: 0.6,
+        side: THREE.DoubleSide,
+      }),
+    [flagTex],
+  );
+  const poleMat = useMemo(
+    () =>
+      new THREE.MeshStandardMaterial({
+        color: "#d1d5db",
+        metalness: 0.8,
+        roughness: 0.2,
+      }),
+    [],
+  );
+  const ropeMat = useMemo(
+    () =>
+      new THREE.MeshBasicMaterial({
+        color: "#fef08a",
       }),
     [],
   );
 
-  // Multiple volumetric puffs per stroke point to form thick, cloud-like letters
-  const smokePuffs = useMemo<SmokePuff[]>(() => {
-    const list: SmokePuff[] = [];
-    BRC_STROKE_POINTS.forEach((pt, idx) => {
-      // 3 clustered puffs per stroke coordinate for dense billowy volume
-      for (let k = 0; k < 3; k++) {
-        list.push({
-          baseX: pt[0] * 1.35 + (Math.random() - 0.5) * 0.35,
-          baseY: pt[1] * 1.35 + (Math.random() - 0.5) * 0.35,
-          baseZ: pt[2] + (Math.random() - 0.5) * 0.35,
-          strokeIndex: idx,
-          scaleVar: 0.85 + Math.random() * 0.45,
-          rotSpeed: (Math.random() - 0.5) * 0.6,
-          phase: Math.random() * Math.PI * 2,
-        });
-      }
-    });
-    return list;
-  }, []);
-
-  const tmp = useMemo(() => new THREE.Object3D(), []);
-
   useEffect(() => {
     return () => {
       boxGeo.dispose();
-      smokePuffGeo.dispose();
+      cylinderGeo.dispose();
+      flagGeo.dispose();
+      flagTex.dispose();
       suitBlueMat.dispose();
       capeRedMat.dispose();
       skinMat.dispose();
       goldMat.dispose();
-      smokeMat.dispose();
+      flagMat.dispose();
+      poleMat.dispose();
+      ropeMat.dispose();
     };
-  }, [boxGeo, smokePuffGeo, suitBlueMat, capeRedMat, skinMat, goldMat, smokeMat]);
-
-  useLayoutEffect(() => {
-    const m = smokeMeshRef.current;
-    if (!m) return;
-    for (let i = 0; i < smokePuffs.length; i++) {
-      tmp.position.set(0, -999, 0);
-      tmp.scale.setScalar(0.0001);
-      tmp.updateMatrix();
-      m.setMatrixAt(i, tmp.matrix);
-    }
-    m.instanceMatrix.needsUpdate = true;
-  }, [smokePuffs, tmp]);
+  }, [
+    boxGeo,
+    cylinderGeo,
+    flagGeo,
+    flagTex,
+    suitBlueMat,
+    capeRedMat,
+    skinMat,
+    goldMat,
+    flagMat,
+    poleMat,
+    ropeMat,
+  ]);
 
   useFrame((state, rawDt) => {
     const dt = Math.min(rawDt, 0.05);
@@ -155,179 +160,158 @@ export default function Superhero({
     const p = morph?.p ?? 0;
     const vis = Math.max(0, 1 - smooth01(p));
     const grow = easeOutBack(clamp01(intro.current / 0.7));
-    const totalScale = vis * grow;
+    const scale = vis * grow;
 
-    // Flight Orbit Motion
+    // Orbiting superhero flight path
     const hero = heroGroup.current;
-    const flightSpeed = 0.48;
-    const angle = t * flightSpeed;
-    const r = orbit * 1.15;
-
-    const heroX = Math.cos(angle) * r;
-    const heroZ = Math.sin(angle) * r;
-    const heroY = alt + Math.sin(t * 1.6) * 0.75;
-
     if (hero) {
-      hero.position.set(heroX, heroY, heroZ);
+      const flightSpeed = 0.52;
+      const angle = t * flightSpeed;
+      const r = orbit * 1.15;
+
+      const x = Math.cos(angle) * r;
+      const z = Math.sin(angle) * r;
+      const y = alt + Math.sin(t * 1.8) * 0.8;
+
+      hero.position.set(x, y, z);
       hero.rotation.set(
-        Math.PI / 2.35, // Horizontal flight angle
+        Math.PI / 2.3, // Flying horizontal posture
         -angle - Math.PI / 2,
-        0.32, // Aerodynamic banking
+        0.35, // Bank roll into curve
         "YXZ",
       );
-      hero.scale.setScalar(Math.max(0.0001, 1.25 * totalScale));
-      hero.visible = totalScale > 0.02;
+      hero.scale.setScalar(Math.max(0.0001, 1.2 * scale));
+      hero.visible = scale > 0.02;
     }
 
-    // Billowing cape flutter
+    // Billowing Cape Animation
     if (capeRef.current) {
-      capeRef.current.rotation.x = 0.16 + Math.sin(t * 15) * 0.24;
-      capeRef.current.rotation.z = Math.cos(t * 13) * 0.12;
+      capeRef.current.rotation.x = 0.15 + Math.sin(t * 14) * 0.22;
+      capeRef.current.rotation.z = Math.cos(t * 12) * 0.1;
     }
 
-    // Volumetric Smoke Letters Trail
-    const smokeMesh = smokeMeshRef.current;
-    if (smokeMesh) {
-      smokeMat.opacity = vis * 0.58;
-      smokeMesh.visible = smokeMat.opacity > 0.01;
-      if (!smokeMesh.visible) return;
-
-      // Position the skywritten BRC cloud directly in the hero's wake
-      const trailLagAngle = angle - 0.75;
-      const cloudCenter = new THREE.Vector3(
-        Math.cos(trailLagAngle) * (orbit * 1.08),
-        alt + 0.6,
-        Math.sin(trailLagAngle) * (orbit * 1.08),
-      );
-
-      // Facing the main front camera
-      const yawAngle = -trailLagAngle - Math.PI / 2;
-
-      for (let i = 0; i < smokePuffs.length; i++) {
-        const puff = smokePuffs[i];
-
-        // Progressive writing wave from B to R to C
-        const strokeProgress = puff.strokeIndex / BRC_STROKE_POINTS.length;
-        const wave = Math.sin(t * 1.2 - strokeProgress * 4.5);
-        const billowGrowth = 1.0 + Math.max(0, wave) * 0.22;
-
-        // Subtle drifting float
-        const driftX = Math.sin(t * 0.6 + puff.phase) * 0.18;
-        const driftY = Math.cos(t * 0.5 + puff.phase) * 0.18;
-
-        // Rotate offset into the camera view plane
-        const localX = (puff.baseX + driftX) * billowGrowth;
-        const localY = (puff.baseY + driftY) * billowGrowth;
-        const localZ = puff.baseZ;
-
-        const rotatedX = localX * Math.cos(yawAngle) - localZ * Math.sin(yawAngle);
-        const rotatedZ = localX * Math.sin(yawAngle) + localZ * Math.cos(yawAngle);
-
-        tmp.position.set(
-          cloudCenter.x + rotatedX,
-          cloudCenter.y + localY,
-          cloudCenter.z + rotatedZ,
-        );
-
-        tmp.rotation.set(
-          t * puff.rotSpeed,
-          t * puff.rotSpeed * 0.8,
-          puff.phase,
-        );
-
-        const currentPuffScale = puff.scaleVar * billowGrowth * totalScale;
-        tmp.scale.setScalar(Math.max(0.0001, currentPuffScale));
-        tmp.updateMatrix();
-
-        smokeMesh.setMatrixAt(i, tmp.matrix);
+    // Organic Wave Deformation for the trailing "Bryan R.C." Flag
+    if (flagMeshRef.current) {
+      const posAttr = flagGeo.attributes.position;
+      for (let i = 0; i < posAttr.count; i++) {
+        const u = (posAttr.getX(i) + 3.2) / 6.4; // 0 (tether/front) to 1 (tail/back)
+        // Amplitude grows towards the trailing end
+        const wave = Math.sin(t * 10 - u * 7) * (0.08 + u * 0.45);
+        posAttr.setZ(i, wave);
       }
-      smokeMesh.instanceMatrix.needsUpdate = true;
+      posAttr.needsUpdate = true;
     }
   });
 
   return (
-    <>
-      {/* Flying Superhero */}
-      <group ref={heroGroup}>
-        {/* Torso */}
-        <mesh geometry={boxGeo} material={suitBlueMat} scale={[0.48, 0.72, 0.32]} />
+    <group ref={heroGroup}>
+      {/* --- Superhero Figure --- */}
+      {/* Torso */}
+      <mesh geometry={boxGeo} material={suitBlueMat} scale={[0.48, 0.72, 0.32]} />
 
-        {/* Gold Emblem */}
+      {/* Golden Chest Emblem */}
+      <mesh
+        geometry={boxGeo}
+        material={goldMat}
+        position={[0, 0.12, 0.18]}
+        scale={[0.22, 0.22, 0.06]}
+      />
+
+      {/* Head */}
+      <mesh
+        geometry={boxGeo}
+        material={skinMat}
+        position={[0, 0.52, 0]}
+        scale={[0.3, 0.32, 0.3]}
+      />
+
+      {/* Extended Right Fist (Leading Hand) */}
+      <mesh
+        geometry={boxGeo}
+        material={skinMat}
+        position={[0.22, 0.85, 0.08]}
+        scale={[0.16, 0.45, 0.16]}
+      />
+
+      {/* Left Hand (Holding Flag Tether) */}
+      <mesh
+        geometry={boxGeo}
+        material={suitBlueMat}
+        position={[-0.32, 0.15, -0.04]}
+        scale={[0.14, 0.52, 0.14]}
+      />
+
+      {/* Legs */}
+      <mesh
+        geometry={boxGeo}
+        material={suitBlueMat}
+        position={[-0.14, -0.65, 0]}
+        scale={[0.18, 0.65, 0.2]}
+      />
+      <mesh
+        geometry={boxGeo}
+        material={suitBlueMat}
+        position={[0.14, -0.65, 0]}
+        scale={[0.18, 0.65, 0.2]}
+      />
+
+      {/* Red Boots */}
+      <mesh
+        geometry={boxGeo}
+        material={capeRedMat}
+        position={[-0.14, -0.92, 0.04]}
+        scale={[0.19, 0.28, 0.22]}
+      />
+      <mesh
+        geometry={boxGeo}
+        material={capeRedMat}
+        position={[0.14, -0.92, 0.04]}
+        scale={[0.19, 0.28, 0.22]}
+      />
+
+      {/* Billowing Cape */}
+      <mesh
+        ref={capeRef}
+        geometry={boxGeo}
+        material={capeRedMat}
+        position={[0, -0.2, -0.24]}
+        scale={[0.54, 1.15, 0.05]}
+      />
+
+      {/* --- Trailing Flag with "Bryan R.C." --- */}
+      <group position={[-0.34, 0.05, 0]}>
+        {/* Tether Rig / Flagpole */}
         <mesh
-          geometry={boxGeo}
-          material={goldMat}
-          position={[0, 0.12, 0.18]}
-          scale={[0.22, 0.22, 0.06]}
+          geometry={cylinderGeo}
+          material={poleMat}
+          position={[0, -1.1, 0.1]}
+          scale={[0.04, 2.4, 0.04]}
+        />
+        {/* Top & Bottom Tow Ropes */}
+        <mesh
+          geometry={cylinderGeo}
+          material={ropeMat}
+          position={[0, 0.12, 0.08]}
+          rotation={[0, 0, Math.PI / 4]}
+          scale={[0.02, 0.45, 0.02]}
+        />
+        <mesh
+          geometry={cylinderGeo}
+          material={ropeMat}
+          position={[0, -2.15, 0.08]}
+          rotation={[0, 0, -Math.PI / 4]}
+          scale={[0.02, 0.45, 0.02]}
         />
 
-        {/* Head */}
+        {/* Flying Banner */}
         <mesh
-          geometry={boxGeo}
-          material={skinMat}
-          position={[0, 0.52, 0]}
-          scale={[0.3, 0.32, 0.3]}
-        />
-
-        {/* Forward Leading Fist */}
-        <mesh
-          geometry={boxGeo}
-          material={skinMat}
-          position={[0.22, 0.85, 0.08]}
-          scale={[0.16, 0.45, 0.16]}
-        />
-
-        {/* Trailing Arm */}
-        <mesh
-          geometry={boxGeo}
-          material={suitBlueMat}
-          position={[-0.32, 0.15, -0.04]}
-          scale={[0.14, 0.52, 0.14]}
-        />
-
-        {/* Flying Legs */}
-        <mesh
-          geometry={boxGeo}
-          material={suitBlueMat}
-          position={[-0.14, -0.65, 0]}
-          scale={[0.18, 0.65, 0.2]}
-        />
-        <mesh
-          geometry={boxGeo}
-          material={suitBlueMat}
-          position={[0.14, -0.65, 0]}
-          scale={[0.18, 0.65, 0.2]}
-        />
-
-        {/* Red Boots */}
-        <mesh
-          geometry={boxGeo}
-          material={capeRedMat}
-          position={[-0.14, -0.92, 0.04]}
-          scale={[0.19, 0.28, 0.22]}
-        />
-        <mesh
-          geometry={boxGeo}
-          material={capeRedMat}
-          position={[0.14, -0.92, 0.04]}
-          scale={[0.19, 0.28, 0.22]}
-        />
-
-        {/* Flapping Red Cape */}
-        <mesh
-          ref={capeRef}
-          geometry={boxGeo}
-          material={capeRedMat}
-          position={[0, -0.2, -0.24]}
-          scale={[0.54, 1.15, 0.05]}
+          ref={flagMeshRef}
+          geometry={flagGeo}
+          material={flagMat}
+          position={[-3.3, -1.05, 0.1]}
+          rotation={[0, Math.PI, 0]}
         />
       </group>
-
-      {/* Billowy Skywriting Smoke "BRC" */}
-      <instancedMesh
-        ref={smokeMeshRef}
-        args={[smokePuffGeo, smokeMat, smokePuffs.length]}
-        frustumCulled={false}
-      />
-    </>
+    </group>
   );
 }
