@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { morph, smooth01 } from "./shared";
@@ -8,30 +8,40 @@ interface Drop {
   y: number;
   z: number;
   speed: number;
-  len: number;
+  length: number;
+  thickness: number;
 }
 
-export default function Rain({ total = 25, count = 260 }: { total?: number; count?: number }) {
-  const span = Math.max(26, total * 1.35);
-  const H = 22;
+export default function Rain({
+  total = 25,
+  count = 450,
+}: {
+  total?: number;
+  count?: number;
+}) {
+  const span = Math.max(34, total * 1.6);
+  const H_TOP = 28;
+  const H_BOTTOM = 0;
 
   const drops = useMemo<Drop[]>(() => {
     return Array.from({ length: count }, () => ({
       x: (Math.random() - 0.5) * span,
-      y: Math.random() * H,
+      y: Math.random() * H_TOP,
       z: (Math.random() - 0.5) * span,
-      speed: 24 + Math.random() * 12,
-      len: 0.5 + Math.random() * 0.4,
+      speed: 28 + Math.random() * 16,
+      length: 1.2 + Math.random() * 0.8,
+      thickness: 0.06 + Math.random() * 0.04,
     }));
   }, [count, span]);
 
-  const geo = useMemo(() => new THREE.CylinderGeometry(0.02, 0.02, 1, 4), []);
+  // Box geometry gives flat, solid faces that render reliably without vanishing
+  const geo = useMemo(() => new THREE.BoxGeometry(1, 1, 1), []);
   const mat = useMemo(
     () =>
       new THREE.MeshBasicMaterial({
-        color: "#9bc8eb",
+        color: "#d0e7ff",
         transparent: true,
-        opacity: 0.55,
+        opacity: 0.75,
         depthWrite: false,
       }),
     [],
@@ -47,6 +57,21 @@ export default function Rain({ total = 25, count = 260 }: { total?: number; coun
     };
   }, [geo, mat]);
 
+  // Pre-seed matrix transforms on mount so drops are visible immediately
+  useLayoutEffect(() => {
+    const m = ref.current;
+    if (!m) return;
+    for (let i = 0; i < drops.length; i++) {
+      const d = drops[i];
+      tmp.position.set(d.x, d.y, d.z);
+      tmp.scale.set(d.thickness, d.length, d.thickness);
+      tmp.rotation.set(0.12, 0, -0.06);
+      tmp.updateMatrix();
+      m.setMatrixAt(i, tmp.matrix);
+    }
+    m.instanceMatrix.needsUpdate = true;
+  }, [drops, tmp]);
+
   useFrame((_, rawDt) => {
     const m = ref.current;
     if (!m) return;
@@ -54,17 +79,21 @@ export default function Rain({ total = 25, count = 260 }: { total?: number; coun
     const p = morph?.p ?? 0;
     const vis = Math.max(0, 1 - smooth01(p));
 
-    mat.opacity = vis * 0.55;
+    mat.opacity = vis * 0.75;
     m.visible = mat.opacity > 0.01;
     if (!m.visible) return;
 
     for (let i = 0; i < drops.length; i++) {
       const d = drops[i];
       d.y -= d.speed * dt;
-      if (d.y < 0) d.y = H;
+      if (d.y < H_BOTTOM) {
+        d.y = H_TOP;
+        d.x = (Math.random() - 0.5) * span;
+        d.z = (Math.random() - 0.5) * span;
+      }
 
       tmp.position.set(d.x, d.y, d.z);
-      tmp.scale.set(1, d.len, 1);
+      tmp.scale.set(d.thickness, d.length, d.thickness);
       tmp.rotation.set(0.12, 0, -0.06);
       tmp.updateMatrix();
       m.setMatrixAt(i, tmp.matrix);
