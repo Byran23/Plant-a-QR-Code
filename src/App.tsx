@@ -8,7 +8,7 @@ import { buildGrid, downloadPng, readHash, writeHash, type ShareState } from "./
 import { resolvePalette, SEASONS } from "./lib/palettes";
 import { hashSeed } from "./lib/random";
 
-const DEFAULT_URL = "https://sp-lis.launion.gov.ph/login";
+const DEFAULT_URL = "https://sp-lis.launion.gov.ph/";
 
 export default function App() {
   const boot = useMemo(readHash, []);
