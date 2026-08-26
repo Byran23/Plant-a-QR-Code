@@ -11,8 +11,8 @@ interface Drop {
   len: number;
 }
 
-export default function Rain({ total = 25, count = 280 }: { total?: number; count?: number }) {
-  const span = Math.max(26, total * 1.3);
+export default function Rain({ total = 25, count = 260 }: { total?: number; count?: number }) {
+  const span = Math.max(26, total * 1.35);
   const H = 22;
 
   const drops = useMemo<Drop[]>(() => {
@@ -65,7 +65,6 @@ export default function Rain({ total = 25, count = 280 }: { total?: number; coun
 
       tmp.position.set(d.x, d.y, d.z);
       tmp.scale.set(1, d.len, 1);
-      // Slight slant into the rain fall
       tmp.rotation.set(0.12, 0, -0.06);
       tmp.updateMatrix();
       m.setMatrixAt(i, tmp.matrix);
