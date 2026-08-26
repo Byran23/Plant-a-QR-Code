@@ -60,7 +60,7 @@ const BRANCH_COLOR = ["#43281c"];
 const GRASS_COLORS = ["#82bf4f", "#94ce5e", "#71ab41"];
 const REED_COLORS = ["#df8db0", "#ebb0cb", "#cf779f"];
 
-function generateDynamicSakura(
+function generateAdaptiveBulkySakura(
   seed: number,
   grid: QRGrid,
   zone: ForestZone
@@ -77,27 +77,23 @@ function generateDynamicSakura(
 
   const half = (grid.total - 1) / 2;
 
-  // Scale factors based on QR grid size and zone coverage
-  // Standard QR size is ~21-25; longer URLs push size to 29, 33, 40+
+  // Dynamic scaling based on grid size (longer URLs produce larger grids & zones)
   const sizeRatio = Math.max(1, grid.size / 21);
-  const zoneSpan = zone.n;
+  const H = (8.5 + zone.n * 0.38) * Math.min(1.45, sizeRatio);
+  const trunkBaseRadius = (1.4 + zone.n * 0.08) * Math.min(1.4, sizeRatio);
+  const trunkTopRadius = trunkBaseRadius * 0.52;
 
-  // Dynamic Height & Trunk Thickness
-  const H = (8.5 + (sizeRatio - 1) * 6.5);
-  const baseTrunkRadius = 1.35 * Math.pow(sizeRatio, 0.6);
-  const topTrunkRadius = 0.72 * Math.pow(sizeRatio, 0.5);
+  // 1. Trunk — Scales up in height and thickness with grid complexity
+  const numRings = Math.floor(18 + zone.n * 0.8);
+  const ringH = (H * 0.44) / numRings;
 
-  const numRings = Math.round(18 * sizeRatio);
-  const ringH = (H * 0.45) / numRings;
-
-  // 1. Trunk Segments
   for (let i = 0; i < numRings; i++) {
     const t = i / numRings;
-    const r = THREE.MathUtils.lerp(baseTrunkRadius, topTrunkRadius, Math.pow(t, 0.75));
+    const r = THREE.MathUtils.lerp(trunkBaseRadius, trunkTopRadius, Math.pow(t, 0.75));
     data.trunk.push({
-      x: (rng() - 0.5) * 0.06,
+      x: 0,
       y: i * ringH + ringH * 0.5,
-      z: (rng() - 0.5) * 0.06,
+      z: 0,
       sx: r * 2,
       sy: ringH * 0.96,
       sz: r * 2,
@@ -106,64 +102,61 @@ function generateDynamicSakura(
     });
   }
 
-  // 2. Dynamic Branches (increases count and length with longer URLs)
-  const numBranches = Math.round(14 + sizeRatio * 8);
-  const branchStartY = H * 0.36;
-
+  // 2. Multi-tier Branch Scaffolding — Dynamically adds more branches for longer URLs
+  const numBranches = Math.floor(16 + zone.n * 1.4);
+  const branchStartY = H * 0.35;
   for (let i = 0; i < numBranches; i++) {
-    const angle = (i / numBranches) * Math.PI * 2 + (rng() - 0.5) * 0.35;
-    const length = (2.6 + (zoneSpan * 0.35)) * (0.85 + rng() * 0.35);
-    const slope = 0.28 + rng() * 0.45;
-    const steps = Math.ceil(length * 3.2);
+    const angle = (i / numBranches) * Math.PI * 2 + (rng() - 0.5) * 0.4;
+    const length = 3.0 + rng() * (zone.n * 0.55);
+    const slope = 0.32 + rng() * 0.48;
+    const steps = Math.ceil(length * 3.4);
 
     const dx = Math.cos(angle);
     const dz = Math.sin(angle);
     const inv = 1 / (Math.hypot(dx, slope, dz) || 1);
 
     let px = 0;
-    let py = branchStartY + rng() * (H * 0.22);
+    let py = branchStartY + rng() * (H * 0.28);
     let pz = 0;
 
     for (let s = 0; s < steps; s++) {
       px += dx * inv * 0.32;
       py += slope * inv * 0.32;
       pz += dz * inv * 0.32;
-      const thick = Math.max(0.14, (0.42 * sizeRatio) - (s / steps) * (0.28 * sizeRatio));
+      const thick = Math.max(0.18, (0.55 + zone.n * 0.02) - (s / steps) * 0.38);
       data.branches.push({
         x: px,
         y: py,
         z: pz,
         sx: thick,
-        sy: thick * 1.25,
+        sy: thick * 1.3,
         sz: thick,
-        rx: (rng() - 0.5) * 0.15,
+        rx: (rng() - 0.5) * 0.12,
         ry: angle,
-        rz: (rng() - 0.5) * 0.15,
+        rz: (rng() - 0.5) * 0.12,
         c: 0,
         u: rng(),
       });
     }
   }
 
-  // 3. Bulky, Expanding Blossom Canopy
+  // 3. Voluminous Blossom Canopy — Fully expands to cover larger zone sizes
   const crownBaseY = H * 0.68;
-  const crownRadius = (zoneSpan * 0.65) * (0.95 + sizeRatio * 0.15);
+  const crownRadius = Math.max(1.2, zone.n * 0.72);
 
   const pushPetalCluster = (mx: number, mz: number, pale: boolean, isDroop = false) => {
     const dist = Math.min(1, Math.hypot(mx, mz) / crownRadius);
-    const domeHeight = Math.pow(Math.max(0, 1 - dist), 0.6) * (3.8 * sizeRatio);
+    const domeHeight = Math.pow(Math.max(0, 1 - dist), 0.65) * (4.2 + zone.n * 0.22);
 
     const oy = isDroop
-      ? branchStartY + 0.3 + rng() * (H * 0.2)
+      ? branchStartY + 0.3 + rng() * (H * 0.25)
       : crownBaseY + domeHeight + (rng() - 0.5) * 1.2;
-
-    const leafScale = 0.95 * Math.pow(sizeRatio, 0.3);
 
     data.canopy.push({
       ox: mx * (isDroop ? 1.08 : 0.94) + (rng() - 0.5) * 0.9,
       oy,
       oz: mz * (isDroop ? 1.08 : 0.94) + (rng() - 0.5) * 0.9,
-      os: isDroop ? (0.75 + rng() * 0.4) * leafScale : (1.05 + rng() * 0.75) * leafScale,
+      os: isDroop ? 0.9 + rng() * 0.5 : 1.25 + rng() * 0.9,
       fx: mx,
       fz: mz,
       ci: pickIndex(rng, SAKURA_COLORS.length),
@@ -175,7 +168,7 @@ function generateDynamicSakura(
     });
   };
 
-  // QR Code Modules
+  // QR Modules in tree crown
   let qrModuleCount = 0;
   for (let r = 0; r < zone.n; r++) {
     for (let c = 0; c < zone.n; c++) {
@@ -188,25 +181,24 @@ function generateDynamicSakura(
     }
   }
 
-  // Extra voluminous blossom filler leaves (multiplies as matrix grows)
-  const fillerMultiplier = 3.5 + (sizeRatio - 1) * 2.0;
-  const fillers = Math.ceil(qrModuleCount * fillerMultiplier);
+  // Multiply extra non-data blossom puffs so the canopy stays dense and fluffy
+  const fillers = Math.ceil(qrModuleCount * 3.8);
   for (let i = 0; i < fillers; i++) {
     const angle = rng() * Math.PI * 2;
     const rad = Math.sqrt(rng()) * crownRadius * 0.98;
     pushPetalCluster(Math.cos(angle) * rad, Math.sin(angle) * rad, true);
   }
 
-  // Hanging blossom tendrils around perimeter
-  const droops = Math.round(24 + sizeRatio * 16);
+  // Weeping hanging flower tendrils around the perimeter
+  const droops = Math.floor(26 + zone.n * 1.5);
   for (let i = 0; i < droops; i++) {
     const angle = (i / droops) * Math.PI * 2 + (rng() - 0.5) * 0.35;
     const rad = crownRadius * (0.65 + rng() * 0.32);
     pushPetalCluster(Math.cos(angle) * rad, Math.sin(angle) * rad, true, true);
   }
 
-  // 4. Ground Petals
-  const petalCount = Math.round(60 * sizeRatio);
+  // 4. Ground Fallen Petals
+  const petalCount = Math.floor(65 + zone.n * 3.5);
   for (let i = 0; i < petalCount; i++) {
     const angle = rng() * Math.PI * 2;
     const rad = 0.6 + Math.sqrt(rng()) * (half - 1.2);
@@ -214,17 +206,17 @@ function generateDynamicSakura(
       x: Math.cos(angle) * rad + (rng() - 0.5) * 0.35,
       y: FLAT_TILE_TOP + 0.015,
       z: Math.sin(angle) * rad + (rng() - 0.5) * 0.35,
-      sx: 0.26 + rng() * 0.2,
+      sx: 0.28 + rng() * 0.2,
       sy: 0.02,
-      sz: 0.26 + rng() * 0.2,
+      sz: 0.28 + rng() * 0.2,
       ry: rng() * Math.PI * 2,
       c: pickIndex(rng, SAKURA_COLORS.length),
       u: rng(),
     });
   }
 
-  // 5. Perimeter Grass Spikes
-  const perimeterCount = Math.round(40 * sizeRatio);
+  // 5. Perimeter Vegetation
+  const perimeterCount = Math.floor(36 + zone.n * 2.2);
   for (let i = 0; i < perimeterCount; i++) {
     const angle = (i / perimeterCount) * Math.PI * 2 + (rng() - 0.5) * 0.2;
     const rad = half - 1.4 + (rng() - 0.5) * 1.2;
@@ -258,7 +250,7 @@ function generateDynamicSakura(
         rx: (rng() - 0.5) * 0.25,
         ry: rng() * Math.PI,
         rz: (rng() - 0.5) * 0.25,
-        c: pickIndex(rng, REED_PALETTE.length),
+        c: pickIndex(rng, REED_COLORS.length),
         u: rng(),
       });
     }
@@ -437,10 +429,7 @@ export default function Tree({
   const petalDiscGeo = useMemo(() => new THREE.CylinderGeometry(0.52, 0.52, 0.12, 6), []);
   const bladeGeo = useMemo(() => new THREE.ConeGeometry(0.1, 1, 4), []);
 
-  const data = useMemo(
-    () => generateDynamicSakura(seed, grid, zone),
-    [seed, grid, zone]
-  );
+  const data = useMemo(() => generateAdaptiveBulkySakura(seed, grid, zone), [seed, grid, zone]);
 
   const canopyColors = useMemo(
     () => SAKURA_COLORS.map((c) => new THREE.Color(c)),
