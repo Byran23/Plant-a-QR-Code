@@ -212,10 +212,14 @@ export default function HotAirBalloon({
         Math.sin(t * 0.12 + 1.5) * 1.1 +
         Math.cos(t * 0.06) * 0.6;
 
-      // Slow high-altitude wind drift
-      const driftX = offsetX + Math.sin(t * 0.08) * 1.2 + Math.cos(t * 0.03) * 0.6;
-      const driftZ = offsetZ + Math.cos(t * 0.04) * 1.2 + Math.sin(t * 0.03) * 0.6;
-      const currentY = alt + verticalFloat;
+      // Calm, almost motionless high-altitude suspension
+        const driftX = offsetX + Math.sin(t * 0.05) * 0.15; // Minimal lateral meandering
+        const driftZ = offsetZ + Math.cos(t * 0.04) * 0.15;
+
+        // Strict upward-only "breathing" motion (absolute value ensures no downward dip)
+        const upwardOnlyFloat = Math.abs(Math.sin(t * 0.18)) * 0.35; // Bobs up to +0.35, returns to base 'alt'
+
+        const currentY = alt + upwardOnlyFloat;
 
       g.position.set(driftX, currentY, driftZ);
       g.rotation.set(
