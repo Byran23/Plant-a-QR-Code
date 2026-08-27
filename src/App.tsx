@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ExternalLink, Flower2, QrCode } from "lucide-react";
+import { ExternalLink, Flower2, QrCode, Lock } from "lucide-react";
 import Scene from "./three/Scene";
 import Controls from "./components/Controls";
+import PinLogin from "./components/PinLogin";
 import { FooterBits, Header, Hint, Toast, Watermark } from "./components/Overlays";
 import { buildGrid, downloadPng, readHash, writeHash, type ShareState } from "./lib/qr";
 import { resolvePalette, SEASONS } from "./lib/palettes";
@@ -22,6 +23,10 @@ export default function App() {
   const [qr, setQr] = useState(false);
   const [toast, setToast] = useState<{ id: number; msg: string } | null>(null);
   const [copied, setCopied] = useState(false);
+  
+  // Auth state
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
 
   const isMinimalView = useMemo(() => {
     if (typeof window === "undefined") return false;
@@ -140,7 +145,7 @@ export default function App() {
 
   return (
     <div className="relative h-full w-full overflow-hidden font-sans text-stone-900 select-none">
-      {/* Dynamic Seasonal Wallpaper Backdrop */}
+      {/* Seasonal Wallpaper Backdrop */}
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
         <AnimatePresence>
           <motion.div
@@ -156,7 +161,6 @@ export default function App() {
           />
         </AnimatePresence>
 
-        {/* Radiant Atmospheric Sun / Glow Orb */}
         <div
           className="absolute left-1/2 top-[22%] h-[420px] w-[420px] -translate-x-1/2 -translate-y-1/2 rounded-full blur-3xl opacity-80 transition-all duration-1000"
           style={{ background: palette.sunGlow }}
@@ -168,19 +172,16 @@ export default function App() {
           }}
         />
 
-        {/* Distant Mountain Silhouettes */}
         <svg
           className="absolute inset-x-0 bottom-0 w-full h-[42vh] opacity-90 transition-all duration-1000"
           viewBox="0 0 1440 420"
           preserveAspectRatio="none"
           fill="none"
         >
-          {/* Far Ridge */}
           <path
             d="M0,260 L120,220 L280,270 L460,180 L620,240 L840,160 L1020,230 L1240,170 L1440,240 L1440,420 L0,420 Z"
             fill={palette.ridgeFar}
           />
-          {/* Near Rolling Foothills */}
           <path
             d="M0,320 Q320,240 640,300 T1440,280 L1440,420 L0,420 Z"
             fill={palette.ridgeNear}
@@ -191,7 +192,6 @@ export default function App() {
       <Watermark label={palette.label} />
       <Scene grid={activeGrid} palette={palette} seed={seed} qr={qr} rain={rain} onToggle={toggle} />
 
-      {/* Screen Edge Vignette */}
       <div
         className="pointer-events-none fixed inset-0 z-20"
         style={{
@@ -199,6 +199,20 @@ export default function App() {
         }}
       />
       <div className="noise pointer-events-none fixed inset-0 z-20 opacity-25" />
+
+      {/* PIN Security Modal */}
+      <AnimatePresence>
+        {showLoginModal && (
+          <PinLogin
+            correctPin="0223"
+            onSuccess={() => {
+              setIsAuthenticated(true);
+              setShowLoginModal(false);
+              notify("Access granted — QR Controls unlocked");
+            }}
+          />
+        )}
+      </AnimatePresence>
 
       {isMinimalView ? (
         <div className="pointer-events-none fixed inset-0 z-40 flex flex-col items-center justify-between p-6">
@@ -242,38 +256,54 @@ export default function App() {
 
           <div className="pointer-events-none fixed inset-x-0 bottom-4 z-40 flex flex-col items-center gap-3 sm:bottom-5">
             <Hint qr={qr} />
-            <Controls
-              url={url}
-              onUrl={setUrl}
-              onCommit={() => {
-                const v = url.trim();
-                if (v && v !== committed) setCommitted(v);
-              }}
-              season={season}
-              onSeason={(i) => {
-                setSeason(i);
-                setLeaf(null);
-                setGroundColor(null);
-              }}
-              rain={rain}
-              onToggleRain={toggleRain}
-              isCustom={isCustom}
-              leafValue={leaf ?? baseSeason.foliage[1]}
-              groundValue={groundColor ?? baseSeason.grass[0]}
-              onCustom={(key, v) => (key === "leaf" ? setLeaf(v) : setGroundColor(v))}
-              onResetColors={() => {
-                setLeaf(null);
-                setGroundColor(null);
-              }}
-              onShuffle={() => setSalt((s) => s + 1)}
-              onCopy={onCopy}
-              copied={copied}
-              onDownload={onDownload}
-              qr={qr}
-              onToggle={toggle}
-              onOpenLink={handleOpenLink}
-              gridLabel={`${activeGrid.size}×${activeGrid.size}`}
-            />
+
+            {/* If Authenticated: Render Controls; Otherwise Render Unlock Button */}
+            {isAuthenticated ? (
+              <Controls
+                url={url}
+                onUrl={setUrl}
+                onCommit={() => {
+                  const v = url.trim();
+                  if (v && v !== committed) setCommitted(v);
+                }}
+                season={season}
+                onSeason={(i) => {
+                  setSeason(i);
+                  setLeaf(null);
+                  setGroundColor(null);
+                }}
+                rain={rain}
+                onToggleRain={toggleRain}
+                isCustom={isCustom}
+                leafValue={leaf ?? baseSeason.foliage[1]}
+                groundValue={groundColor ?? baseSeason.grass[0]}
+                onCustom={(key, v) => (key === "leaf" ? setLeaf(v) : setGroundColor(v))}
+                onResetColors={() => {
+                  setLeaf(null);
+                  setGroundColor(null);
+                }}
+                onShuffle={() => setSalt((s) => s + 1)}
+                onCopy={onCopy}
+                copied={copied}
+                onDownload={onDownload}
+                qr={qr}
+                onToggle={toggle}
+                onOpenLink={handleOpenLink}
+                gridLabel={`${activeGrid.size}×${activeGrid.size}`}
+              />
+            ) : (
+              <motion.button
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                onClick={() => setShowLoginModal(true)}
+                className="pointer-events-auto flex items-center gap-2.5 rounded-full border border-rose-950/20 bg-rose-950/90 px-6 py-3.5 text-rose-50 shadow-[0_16px_36px_-12px_rgba(76,20,35,0.5)] backdrop-blur-xl transition-all hover:scale-105 active:scale-95"
+              >
+                <Lock className="h-4 w-4 text-rose-300" />
+                <span className="text-sm font-semibold tracking-wide">
+                  Log in to Configure QR
+                </span>
+              </motion.button>
+            )}
           </div>
         </>
       )}
