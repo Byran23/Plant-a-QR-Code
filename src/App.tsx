@@ -5,7 +5,15 @@ import Scene from "./three/Scene";
 import Controls from "./components/Controls";
 import PinLogin from "./components/PinLogin";
 import { FooterBits, Header, Hint, Toast, Watermark } from "./components/Overlays";
-import { buildGrid, downloadPng, packState, readHash, writeHash, type ShareState } from "./lib/qr";
+import {
+  buildGrid,
+  downloadPng,
+  packState,
+  readHash,
+  resolveShortSlug,
+  writeHash,
+  type ShareState,
+} from "./lib/qr";
 import { resolvePalette, SEASONS } from "./lib/palettes";
 import { hashSeed } from "./lib/random";
 
@@ -35,7 +43,7 @@ export default function App() {
     if (typeof window === "undefined") return false;
     const search = new URLSearchParams(window.location.search);
     const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
-    return search.get("v") === "1" || hash.get("v") === "1" || search.has("z") || hash.has("z");
+    return search.get("v") === "1" || hash.get("v") === "1" || search.has("z") || hash.has("z") || search.has("s") || hash.has("s");
   }, []);
 
   const toastTimer = useRef<number | undefined>(undefined);
@@ -45,6 +53,31 @@ export default function App() {
     window.clearTimeout(toastTimer.current);
     setToast({ id: Date.now(), msg });
     toastTimer.current = window.setTimeout(() => setToast(null), 2600);
+  }, []);
+
+  // Check and resolve self-hosted short code (#s=...) on first load
+  useEffect(() => {
+    const rawHash = window.location.hash.replace(/^#/, "");
+    const params = new URLSearchParams(rawHash || window.location.search);
+    const slug = params.get("s");
+
+    if (slug) {
+      resolveShortSlug(slug).then((unpacked) => {
+        if (!unpacked) return;
+        if (unpacked.url) {
+          setUrl(unpacked.url);
+          setCommitted(unpacked.url);
+        }
+        if (unpacked.season !== undefined) setSeason(unpacked.season);
+        if (unpacked.rain !== undefined) setRain(unpacked.rain);
+        if (unpacked.leaf !== undefined) setLeaf(unpacked.leaf);
+        if (unpacked.ground !== undefined) setGroundColor(unpacked.ground);
+        if (unpacked.salt !== undefined) setSalt(unpacked.salt);
+        if (unpacked.bannerText !== undefined) setBannerText(unpacked.bannerText);
+        if (unpacked.bannerColor !== undefined) setBannerColor(unpacked.bannerColor);
+        if (unpacked.label !== undefined) setCustomThemeLabel(unpacked.label);
+      });
+    }
   }, []);
 
   useEffect(() => {
@@ -110,24 +143,32 @@ export default function App() {
       bannerColor,
     });
 
-    const fullShareUrl = `${window.location.origin}${window.location.pathname}#z=${packed}`;
+    const fallbackShareUrl = `${window.location.origin}${window.location.pathname}#z=${packed}`;
 
     try {
-      const res = await fetch(
-        `https://tinyurl.com/api-create.php?url=${encodeURIComponent(fullShareUrl)}`
-      );
-      const shortUrl = await res.text();
+      // Create shortened link through self-hosted API
+      const res = await fetch("/api/shorten", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ payload: packed }),
+      });
+
+      if (!res.ok) throw new Error("Self-hosted API unavailable");
+
+      const { slug } = await res.json();
+      const ownShortUrl = `${window.location.origin}${window.location.pathname}#s=${slug}`;
 
       if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(shortUrl);
+        await navigator.clipboard.writeText(ownShortUrl);
         setCopied(true);
         window.clearTimeout(copyTimer.current);
         copyTimer.current = window.setTimeout(() => setCopied(false), 1800);
-        notify("Shortened link copied!");
+        notify("Short link copied!");
       }
     } catch {
+      // Fallback to minimal #z= hash payload if backend is unreachable
       if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(fullShareUrl);
+        await navigator.clipboard.writeText(fallbackShareUrl);
         setCopied(true);
         window.clearTimeout(copyTimer.current);
         copyTimer.current = window.setTimeout(() => setCopied(false), 1800);
