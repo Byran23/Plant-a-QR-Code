@@ -10,6 +10,7 @@ import {
   QrCode,
   RotateCcw,
   RotateCw,
+  Tag,
   Type,
 } from "lucide-react";
 
@@ -38,6 +39,8 @@ interface ControlsProps {
   onBannerText: (v: string) => void;
   bannerColor: string;
   onBannerColor: (v: string) => void;
+  customThemeLabel: string;
+  onCustomThemeLabel: (v: string) => void;
 }
 
 const BANNER_COLOR_PRESETS = [
@@ -94,6 +97,8 @@ export default function Controls({
   onBannerText,
   bannerColor,
   onBannerColor,
+  customThemeLabel,
+  onCustomThemeLabel,
 }: ControlsProps) {
   const [open, setOpen] = useState(false);
 
@@ -186,7 +191,7 @@ export default function Controls({
         </button>
       </div>
 
-      {/* Expanded Editable Settings Drawer */}
+      {/* Expanded Customization Drawer */}
       {open && (
         <div className="flex w-92 max-w-[94vw] max-h-[70vh] overflow-y-auto flex-col gap-3.5 rounded-3xl border border-rose-950/15 bg-white/95 p-4.5 shadow-[0_20px_45px_-10px_rgba(76,20,35,0.3)] backdrop-blur-2xl">
           {/* Target Link Input */}
@@ -273,13 +278,13 @@ export default function Controls({
             </div>
           </div>
 
-          {/* Editable Petals & Ground Colors Section */}
+          {/* Editable Theme & Colors Section */}
           <div className="flex flex-col gap-3 rounded-2xl border border-stone-200 bg-stone-50/70 p-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
                 <PaletteIcon className="h-3.5 w-3.5 text-stone-700" />
                 <span className="text-[10px] font-bold uppercase tracking-wider text-stone-700">
-                  Editable Petal & Ground Colors
+                  Editable Theme & Colors
                 </span>
               </div>
               {isEditable && (
@@ -294,8 +299,26 @@ export default function Controls({
               )}
             </div>
 
+            {/* Editable Theme Label Input */}
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center gap-1">
+                <Tag className="h-3 w-3 text-stone-500" />
+                <label className="text-[10px] font-semibold text-stone-600">
+                  Custom Theme Label
+                </label>
+              </div>
+              <input
+                type="text"
+                value={customThemeLabel}
+                onChange={(e) => onCustomThemeLabel(e.target.value)}
+                placeholder="Editable / Custom Theme Name..."
+                maxLength={20}
+                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium text-stone-800 shadow-inner focus:border-rose-400 focus:outline-none"
+              />
+            </div>
+
             {/* Editable Petal / Blossom / Leaves Color */}
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-1.5 pt-1 border-t border-stone-200/60">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-medium text-stone-600">Petals & Leaves</span>
                 <div className="flex items-center gap-1.5">

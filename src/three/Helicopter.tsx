@@ -15,18 +15,18 @@ function createBannerTextures(text: string, primaryColor: string = "#e11d48") {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    // Corrected Swallowtail: Straight leading edge on the left (x=0), V-notch trailing edge on the right (x=2048)
+    // Inverted swallowtail: Left (x=0) is leading straight edge, Right (x=2048) is notched tail
     ctx.save();
     ctx.beginPath();
-    ctx.moveTo(0, 0);                 // Top-left (leading edge)
-    ctx.lineTo(2048, 0);              // Top-right (tail top tip)
-    ctx.lineTo(1780, 256);            // Trailing inner V-notch indent
-    ctx.lineTo(2048, 512);            // Bottom-right (tail bottom tip)
-    ctx.lineTo(0, 512);               // Bottom-left (leading edge)
+    ctx.moveTo(0, 0);                 // Leading top corner
+    ctx.lineTo(2048, 0);              // Trailing top tail tip
+    ctx.lineTo(1760, 256);            // Swallowtail inner V-notch indent
+    ctx.lineTo(2048, 512);            // Trailing bottom tail tip
+    ctx.lineTo(0, 512);               // Leading bottom corner
     ctx.closePath();
     ctx.clip();
 
-    // Canvas background
+    // Canvas background fill
     const bgGrad = ctx.createLinearGradient(0, 0, 2048, 0);
     bgGrad.addColorStop(0, "#ffffff");
     bgGrad.addColorStop(0.6, "#fffdfa");
@@ -34,7 +34,7 @@ function createBannerTextures(text: string, primaryColor: string = "#e11d48") {
     ctx.fillStyle = bgGrad;
     ctx.fill();
 
-    // Ribbon border stripes
+    // Border stripes
     ctx.fillStyle = primaryColor;
     ctx.fillRect(0, 0, 2048, 28);
     ctx.fillRect(0, 484, 2048, 28);
@@ -45,14 +45,14 @@ function createBannerTextures(text: string, primaryColor: string = "#e11d48") {
 
     // Reinforced leading edge grommet hem
     ctx.fillStyle = primaryColor;
-    ctx.fillRect(0, 0, 26, 512);
+    ctx.fillRect(0, 0, 28, 512);
 
     if (isBack) {
       ctx.translate(2048, 0);
       ctx.scale(-1, 1);
     }
 
-    // Typography
+    // Centered, legible typography
     ctx.font = "900 142px 'Roboto', sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
@@ -86,8 +86,8 @@ function createBannerTextures(text: string, primaryColor: string = "#e11d48") {
   return { texFront, texBack };
 }
 
-// Custom pennant mesh geometry with swallowtail trailing notch
-function createPennantGeometry(width = 11.5, height = 2.7, segX = 42, segY = 8) {
+// Inverted pennant mesh geometry
+function createInvertedPennantGeometry(width = 11.5, height = 2.7, segX = 42, segY = 8) {
   const geo = new THREE.PlaneGeometry(width, height, segX, segY);
   const pos = geo.attributes.position;
   const halfW = width / 2;
@@ -97,15 +97,13 @@ function createPennantGeometry(width = 11.5, height = 2.7, segX = 42, segY = 8) 
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i);
     const y = pos.getY(i);
-    // Relative position: u = 0 (leading edge connected to spreader) -> u = 1 (trailing end)
-    // PlaneGeometry default X goes from -halfW to +halfW.
-    // In local group rotation [0, -Math.PI / 2, 0], positive X in the PlaneGeometry is the trailing direction.
+    // Relative position: u = 0 (lead attached to tow) -> u = 1 (trailing tail)
     const u = (x + halfW) / width;
 
-    // Apply swallowtail indent at the trailing tail (u > 0.80)
+    // Apply swallowtail indent strictly at the trailing end (u > 0.80)
     if (u > 0.80) {
       const tailFraction = (u - 0.80) / 0.20;
-      const distFromCenterY = 1 - Math.abs(y) / halfH; // Max indent at vertical center
+      const distFromCenterY = 1 - Math.abs(y) / halfH;
       const notchIndent = tailFraction * distFromCenterY * notchDepth;
       pos.setX(i, x - notchIndent);
     }
@@ -140,7 +138,7 @@ export default function Helicopter({
   const sphereGeo = useMemo(() => new THREE.SphereGeometry(1, 18, 18), []);
   const cylinderGeo = useMemo(() => new THREE.CylinderGeometry(1, 1, 1, 16), []);
   const discGeo = useMemo(() => new THREE.CircleGeometry(2.3, 24), []);
-  const bannerGeo = useMemo(() => createPennantGeometry(11.5, 2.7, 42, 8), []);
+  const bannerGeo = useMemo(() => createInvertedPennantGeometry(11.5, 2.7, 42, 8), []);
 
   const { texFront, texBack } = useMemo(
     () => createBannerTextures(bannerText || "Bryan R. Cañaveral", bannerColor || "#e11d48"),
@@ -324,7 +322,7 @@ export default function Helicopter({
       strobeLightRef.current.intensity = Math.sin(t * 12) > 0.75 ? 2.5 : 0;
     }
 
-    // Natural wave physics: 0 amplitude at leading spreader bar (u=0), rising to full flutter at the trailing swallowtail notch (u=1)
+    // Inverted wave propagation: 0 amplitude at leading tow bar, progressive ripple towards the tail
     const posAttr = bannerGeo.attributes.position;
     for (let i = 0; i < posAttr.count; i++) {
       const u = (posAttr.getX(i) + 5.75) / 11.5;
@@ -451,7 +449,7 @@ export default function Helicopter({
         <mesh geometry={sphereGeo} material={navGreenMat} position={[0.58, 0.06, 0.9]} scale={[0.045, 0.045, 0.045]} />
       </group>
 
-      {/* Tow Rigging & Swallowtail Banner */}
+      {/* Inverted Tow Rigging & Pennant Banner */}
       <group position={[0, -0.25, -2.2]}>
         {/* Main Tow Cable */}
         <mesh
@@ -486,8 +484,8 @@ export default function Helicopter({
           scale={[0.04, 2.85, 0.04]}
         />
 
-        {/* Swallowtail Pennant Banner (Anchored at spreader bar, tapering to trailing notch) */}
-        <group position={[0, -0.8, -8.65]} rotation={[0, -Math.PI / 2, 0]}>
+        {/* Inverted Swallowtail Pennant Banner (Attached to spreader bar, trailing rearward) */}
+        <group position={[0, -0.8, -8.65]} rotation={[0, Math.PI / 2, 0]}>
           <mesh ref={frontBannerMeshRef} geometry={bannerGeo} material={bannerFrontMat} />
           <mesh ref={backBannerMeshRef} geometry={bannerGeo} material={bannerBackMat} />
         </group>

@@ -28,6 +28,7 @@ export default function App() {
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [bannerText, setBannerText] = useState("Bryan R. Cañaveral");
   const [bannerColor, setBannerColor] = useState("#e11d48");
+  const [customThemeLabel, setCustomThemeLabel] = useState("Editable");
 
   const isMinimalView = useMemo(() => {
     if (typeof window === "undefined") return false;
@@ -75,8 +76,8 @@ export default function App() {
     [activeGrid, salt],
   );
   const palette = useMemo(
-    () => resolvePalette(season, leaf, groundColor),
-    [season, leaf, groundColor],
+    () => resolvePalette(season, leaf, groundColor, customThemeLabel),
+    [season, leaf, groundColor, customThemeLabel],
   );
 
   useEffect(() => {
@@ -289,6 +290,7 @@ export default function App() {
                 onResetColors={() => {
                   setLeaf(null);
                   setGroundColor(null);
+                  setCustomThemeLabel("Editable");
                 }}
                 onShuffle={() => setSalt((s) => s + 1)}
                 onCopy={onCopy}
@@ -302,6 +304,8 @@ export default function App() {
                 onBannerText={setBannerText}
                 bannerColor={bannerColor}
                 onBannerColor={setBannerColor}
+                customThemeLabel={customThemeLabel}
+                onCustomThemeLabel={setCustomThemeLabel}
               />
             ) : (
               <motion.button

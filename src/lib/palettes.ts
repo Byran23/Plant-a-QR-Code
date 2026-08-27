@@ -6,23 +6,17 @@ export interface Palette {
   id: SeasonId | "editable";
   baseId: SeasonId;
   label: string;
-  /** CSS sky gradient (behind the transparent canvas) */
   sky: [string, string];
-  /** Radial sun/glow position & tint */
   glow: string;
   sunGlow: string;
-  /** 2D Vector mountain ridge colors for the wallpaper backdrop */
   ridgeFar: string;
   ridgeNear: string;
   fog: string;
   hemiSky: string;
   hemiGround: string;
   sun: string;
-  /** Light-module tiles in tree mode */
   grass: string[];
-  /** Dark-module tiles in tree mode */
   dark: string[];
-  /** Diorama base plate */
   soil: string;
   trunk: string[];
   foliage: string[];
@@ -30,7 +24,6 @@ export interface Palette {
   rock: string;
   foliageDensity: number;
   decorDensity: number;
-  /** Flat QR mode tints */
   qrDark: string;
   qrLight: string;
   finderDark: string;
@@ -179,6 +172,7 @@ export function resolvePalette(
   season: number,
   editableLeaf: string | null,
   editableGround: string | null,
+  customThemeLabel?: string,
 ): Palette {
   const base = SEASONS[((season % SEASONS.length) + SEASONS.length) % SEASONS.length];
   const isEditable = Boolean(editableLeaf || editableGround);
@@ -186,7 +180,7 @@ export function resolvePalette(
   const p: Palette = {
     ...base,
     id: isEditable ? "editable" : base.id,
-    label: isEditable ? "Editable" : base.label,
+    label: isEditable ? (customThemeLabel?.trim() || "Editable") : base.label,
   };
 
   if (editableLeaf) {
