@@ -5,73 +5,66 @@ import { morph, smooth01, clamp01, easeOutBack } from "./shared";
 
 const LOGO_SRC = "https://i.imgur.com/1xINYng.png";
 
-function createVibrantBlimpTexture(logoImage: HTMLImageElement | null) {
+function createColorfulBlimpTexture(logoImage: HTMLImageElement | null) {
   const canvas = document.createElement("canvas");
   canvas.width = 2048;
   canvas.height = 1024;
   const ctx = canvas.getContext("2d");
 
   if (ctx) {
-    // 1. Horizontal Rainbow / Multi-Tone Aurora Envelope Bands
-    const rainbowBands = [
-      "#ec4899", // Pink (Dorsal top)
-      "#8b5cf6", // Violet
-      "#3b82f6", // Royal Blue
-      "#06b6d4", // Cyan
-      "#10b981", // Emerald
-      "#84cc16", // Lime
-      "#eab308", // Yellow
-      "#f97316", // Orange
-      "#e11d48", // Crimson
-      "#1e1b4b", // Deep Navy Belly
+    // 1. Rainbow longitudinal hull sections
+    const rainbowColors = [
+      "#f43f5e", // Rose
+      "#fb923c", // Orange
+      "#facc15", // Yellow
+      "#4ade80", // Lime Green
+      "#2dd4bf", // Teal
+      "#38bdf8", // Sky Blue
+      "#818cf8", // Indigo
+      "#c084fc", // Purple
     ];
 
-    const bandH = canvas.height / rainbowBands.length;
-    for (let i = 0; i < rainbowBands.length; i++) {
-      ctx.fillStyle = rainbowBands[i];
+    const bandH = canvas.height / rainbowColors.length;
+    for (let i = 0; i < rainbowColors.length; i++) {
+      ctx.fillStyle = rainbowColors[i];
       ctx.fillRect(0, i * bandH, canvas.width, bandH);
 
-      // Subtle seam line between bands for structure
-      ctx.fillStyle = "rgba(0, 0, 0, 0.08)";
-      ctx.fillRect(0, i * bandH, canvas.width, 2);
+      // Subtle metallic highlight and seam line
+      ctx.fillStyle = "rgba(255, 255, 255, 0.16)";
+      ctx.fillRect(0, i * bandH, canvas.width, 3);
+      ctx.fillStyle = "rgba(0, 0, 0, 0.1)";
+      ctx.fillRect(0, (i + 1) * bandH - 3, canvas.width, 3);
     }
 
-    // 2. Pearlescent Horizon Sheen
-    const sheen = ctx.createLinearGradient(0, 0, 0, canvas.height);
-    sheen.addColorStop(0, "rgba(255, 255, 255, 0.28)");
-    sheen.addColorStop(0.35, "rgba(255, 255, 255, 0.0)");
-    sheen.addColorStop(0.7, "rgba(255, 255, 255, 0.15)");
-    sheen.addColorStop(1, "rgba(0, 0, 0, 0.2)");
-    ctx.fillStyle = sheen;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    // 2. Bold horizontal racing accents along the waist
+    ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+    ctx.fillRect(0, canvas.height * 0.47, canvas.width, 64);
 
-    // 3. Golden Trim Accent Stripes
-    ctx.fillStyle = "#f59e0b";
-    ctx.fillRect(0, canvas.height * 0.32, canvas.width, 6);
-    ctx.fillRect(0, canvas.height * 0.68, canvas.width, 6);
+    ctx.fillStyle = "#f59e0b"; // Gold Trim
+    ctx.fillRect(0, canvas.height * 0.46, canvas.width, 8);
+    ctx.fillRect(0, canvas.height * 0.54, canvas.width, 8);
 
-    // 4. Logo Medallions on Port & Starboard Sides
+    // 3. Port & Starboard Logo Decals
     if (logoImage && logoImage.complete && logoImage.naturalWidth > 0) {
-      const badgeDiameter = 270;
-      const badgeY = canvas.height * 0.5; // Centered vertically on the airship side
+      const badgeDiameter = 320;
+      const badgeY = canvas.height * 0.5;
 
-      // Exact horizontal coordinates for Port (25%) and Starboard (75%)
-      const sideOffsets = [canvas.width * 0.25, canvas.width * 0.75];
+      // Port side (25%) and Starboard side (75%)
+      const flankCenters = [canvas.width * 0.25, canvas.width * 0.75];
 
-      sideOffsets.forEach((badgeX) => {
+      flankCenters.forEach((badgeX) => {
         ctx.save();
-
-        // White Circular Base Plaque
         ctx.beginPath();
         ctx.arc(badgeX, badgeY, badgeDiameter / 2, 0, Math.PI * 2);
         ctx.closePath();
 
+        // Crisp white circular medallion
         ctx.fillStyle = "#ffffff";
         ctx.shadowColor = "rgba(0, 0, 0, 0.35)";
         ctx.shadowBlur = 18;
         ctx.fill();
 
-        // Dual Gold / Rose Outer Rim
+        // Vibrant layered ring borders
         ctx.lineWidth = 14;
         ctx.strokeStyle = "#f59e0b";
         ctx.stroke();
@@ -80,7 +73,7 @@ function createVibrantBlimpTexture(logoImage: HTMLImageElement | null) {
         ctx.strokeStyle = "#e11d48";
         ctx.stroke();
 
-        // Clip & Render High-Res Logo
+        // Draw centered logo
         ctx.clip();
         const pad = 24;
         ctx.drawImage(
@@ -135,14 +128,14 @@ export default function Blimp({
   const propGeo = useMemo(() => new THREE.BoxGeometry(0.65, 0.04, 0.06), []);
 
   // Textures & Materials
-  const blimpTex = useMemo(() => createVibrantBlimpTexture(logoImg), [logoImg]);
+  const blimpTex = useMemo(() => createColorfulBlimpTexture(logoImg), [logoImg]);
 
   const hullMat = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
         map: blimpTex,
         roughness: 0.35,
-        metalness: 0.12,
+        metalness: 0.1,
       }),
     [blimpTex],
   );
@@ -150,22 +143,24 @@ export default function Blimp({
   const gondolaMat = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
-        color: "#1e1b4b",
-        roughness: 0.25,
+        color: "#1e1b4b", // Deep Indigo
+        roughness: 0.3,
         metalness: 0.6,
       }),
     [],
   );
 
-  const finTopMat = useMemo(() => new THREE.MeshStandardMaterial({ color: "#ec4899", roughness: 0.3 }), []);
-  const finBottomMat = useMemo(() => new THREE.MeshStandardMaterial({ color: "#3b82f6", roughness: 0.3 }), []);
-  const finSideMat = useMemo(() => new THREE.MeshStandardMaterial({ color: "#10b981", roughness: 0.3 }), []);
+  const finTopMat = useMemo(() => new THREE.MeshStandardMaterial({ color: "#f43f5e", roughness: 0.4 }), []);
+  const finBottomMat = useMemo(() => new THREE.MeshStandardMaterial({ color: "#c084fc", roughness: 0.4 }), []);
+  const finLeftMat = useMemo(() => new THREE.MeshStandardMaterial({ color: "#38bdf8", roughness: 0.4 }), []);
+  const finRightMat = useMemo(() => new THREE.MeshStandardMaterial({ color: "#4ade80", roughness: 0.4 }), []);
 
   const propMat = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
         color: "#f59e0b",
-        roughness: 0.3,
+        roughness: 0.25,
+        metalness: 0.6,
       }),
     [],
   );
@@ -182,10 +177,25 @@ export default function Blimp({
       gondolaMat.dispose();
       finTopMat.dispose();
       finBottomMat.dispose();
-      finSideMat.dispose();
+      finLeftMat.dispose();
+      finRightMat.dispose();
       propMat.dispose();
     };
-  }, [hullGeo, gondolaGeo, finGeo, engineGeo, propGeo, blimpTex, hullMat, gondolaMat, finTopMat, finBottomMat, finSideMat, propMat]);
+  }, [
+    hullGeo,
+    gondolaGeo,
+    finGeo,
+    engineGeo,
+    propGeo,
+    blimpTex,
+    hullMat,
+    gondolaMat,
+    finTopMat,
+    finBottomMat,
+    finLeftMat,
+    finRightMat,
+    propMat,
+  ]);
 
   useFrame((state, rawDt) => {
     const dt = Math.min(rawDt, 0.05);
@@ -223,7 +233,7 @@ export default function Blimp({
 
   return (
     <group ref={blimpGroup}>
-      {/* Colorful Streamlined Hull with Port & Starboard Decals */}
+      {/* Colorful Hull with Logo Medallions */}
       <mesh
         geometry={hullGeo}
         material={hullMat}
@@ -231,7 +241,7 @@ export default function Blimp({
         castShadow
       />
 
-      {/* Gondola Cabin Underbelly */}
+      {/* Control Gondola */}
       <mesh
         geometry={gondolaGeo}
         material={gondolaMat}
@@ -239,13 +249,13 @@ export default function Blimp({
         castShadow
       />
 
-      {/* Colorful Stabilizer Fins */}
+      {/* Colorful Tail Fins */}
       <mesh geometry={finGeo} material={finTopMat} position={[0, 1.4, -3.8]} />
       <mesh geometry={finGeo} material={finBottomMat} position={[0, -1.4, -3.8]} />
-      <mesh geometry={finGeo} material={finSideMat} position={[1.4, 0, -3.8]} rotation={[0, 0, Math.PI / 2]} />
-      <mesh geometry={finGeo} material={finSideMat} position={[-1.4, 0, -3.8]} rotation={[0, 0, Math.PI / 2]} />
+      <mesh geometry={finGeo} material={finLeftMat} position={[1.4, 0, -3.8]} rotation={[0, 0, Math.PI / 2]} />
+      <mesh geometry={finGeo} material={finRightMat} position={[-1.4, 0, -3.8]} rotation={[0, 0, Math.PI / 2]} />
 
-      {/* Propeller Engines */}
+      {/* Engines & Props */}
       <group position={[-0.65, -1.75, 0]}>
         <mesh geometry={engineGeo} material={gondolaMat} rotation={[Math.PI / 2, 0, 0]} />
         <mesh ref={leftPropRef} geometry={propGeo} material={propMat} position={[0, 0, -0.32]} />
@@ -256,8 +266,8 @@ export default function Blimp({
         <mesh ref={rightPropRef} geometry={propGeo} material={propMat} position={[0, 0, -0.32]} />
       </group>
 
-      {/* Strobe Beacon Light */}
-      <pointLight ref={beaconLightRef} color="#ec4899" distance={6} decay={2} position={[0, -2.1, 0.2]} />
+      {/* Flashing Strobe Beacon */}
+      <pointLight ref={beaconLightRef} color="#ff0055" distance={6} decay={2} position={[0, -2.1, 0.2]} />
     </group>
   );
 }
