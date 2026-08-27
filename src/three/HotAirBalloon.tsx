@@ -78,9 +78,9 @@ function createBalloonEnvelopeGeometry() {
 }
 
 export default function HotAirBalloon({
-  offsetX = 2.0,
-  offsetZ = -3.0,
-  alt = 32, // Elevated altitude ensuring zero clipping with canopy top
+  offsetX = 3.5,
+  offsetZ = -4.5,
+  alt = 46, // Set high in the upper sky atmosphere
 }: {
   offsetX?: number;
   offsetZ?: number;
@@ -206,43 +206,44 @@ export default function HotAirBalloon({
 
     const g = groupRef.current;
     if (g) {
-      // Compound multi-frequency harmonics for non-repetitive organic vertical bobbing
+      // Gentle, wide-altitude thermal displacement
       const verticalFloat =
-        Math.sin(t * 0.32) * 0.95 +
-        Math.sin(t * 0.17 + 1.2) * 0.55 +
-        Math.cos(t * 0.09) * 0.35;
+        Math.sin(t * 0.25) * 1.8 +
+        Math.sin(t * 0.12 + 1.5) * 1.1 +
+        Math.cos(t * 0.06) * 0.6;
 
-      // Soft meandering lateral drift
-      const driftX = offsetX + Math.sin(t * 0.11) * 0.6 + Math.cos(t * 0.05) * 0.3;
-      const driftZ = offsetZ + Math.cos(t * 0.09) * 0.6 + Math.sin(t * 0.04) * 0.3;
+      // Slow high-altitude wind drift
+      const driftX = offsetX + Math.sin(t * 0.08) * 1.2 + Math.cos(t * 0.03) * 0.6;
+      const driftZ = offsetZ + Math.cos(t * 0.07) * 1.2 + Math.sin(t * 0.03) * 0.6;
       const currentY = alt + verticalFloat;
 
       g.position.set(driftX, currentY, driftZ);
       g.rotation.set(
-        Math.sin(t * 0.22) * 0.02,
-        t * 0.015,
-        Math.cos(t * 0.18) * 0.02,
+        Math.sin(t * 0.18) * 0.02,
+        t * 0.012,
+        Math.cos(t * 0.14) * 0.02,
       );
-      g.scale.setScalar(Math.max(0.0001, 1.15 * scale));
+      // Scaled up slightly for clarity at high altitudes
+      g.scale.setScalar(Math.max(0.0001, 1.35 * scale));
       g.visible = scale > 0.02;
     }
 
-    // Burner flame expansion synchronizing with upward thermal lift
-    const liftPulse = Math.max(0, Math.cos(t * 0.32));
+    // Burner flame expansion matching thermal lift cycles
+    const liftPulse = Math.max(0, Math.cos(t * 0.25));
     const flicker = Math.sin(t * 14) * 0.25 + Math.cos(t * 22) * 0.1;
 
     if (burnerRef.current) {
-      burnerRef.current.intensity = Math.max(0.4, 1.2 + liftPulse * 0.8 + flicker);
+      burnerRef.current.intensity = Math.max(0.4, 1.4 + liftPulse * 1.0 + flicker);
     }
     if (flameMeshRef.current) {
-      const fScale = 1 + liftPulse * 0.4 + flicker * 0.2;
-      flameMeshRef.current.scale.set(fScale, fScale * 1.2, fScale);
+      const fScale = 1 + liftPulse * 0.45 + flicker * 0.2;
+      flameMeshRef.current.scale.set(fScale, fScale * 1.25, fScale);
     }
   });
 
   return (
     <group ref={groupRef}>
-      {/* Aerodynamic Teardrop Envelope */}
+      {/* Teardrop Envelope */}
       <mesh
         geometry={envelopeGeo}
         material={balloonMat}
@@ -250,7 +251,7 @@ export default function HotAirBalloon({
         castShadow
       />
 
-      {/* Reinforced Throat Collar Ring */}
+      {/* Throat Collar */}
       <mesh
         geometry={collarGeo}
         material={cableMat}
@@ -258,7 +259,7 @@ export default function HotAirBalloon({
         rotation={[Math.PI / 2, 0, 0]}
       />
 
-      {/* Burner Rig & Fire Flame */}
+      {/* Burner & Fire Glow */}
       <group position={[0, -0.78, 0]}>
         <mesh geometry={burnerGeo} material={burnerMat} />
         <mesh
@@ -270,9 +271,9 @@ export default function HotAirBalloon({
         <pointLight
           ref={burnerRef}
           color="#ff7900"
-          distance={5}
+          distance={6}
           decay={2}
-          intensity={1.4}
+          intensity={1.6}
         />
       </group>
 
@@ -282,7 +283,7 @@ export default function HotAirBalloon({
       <mesh geometry={cableGeo} material={cableMat} position={[-0.26, -1.22, 0.26]} rotation={[0.15, 0, 0.15]} />
       <mesh geometry={cableGeo} material={cableMat} position={[0.26, -1.22, 0.26]} rotation={[0.15, 0, -0.15]} />
 
-      {/* Wicker Gondola Basket & Padded Rim */}
+      {/* Wicker Gondola Basket & Rim */}
       <group position={[0, -1.88, 0]}>
         <mesh geometry={basketGeo} material={wickerMat} castShadow />
         <mesh geometry={basketRimGeo} material={wickerTrimMat} position={[0, 0.3, 0]} />
