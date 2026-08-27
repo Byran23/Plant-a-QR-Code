@@ -12,8 +12,6 @@ import Particles from "./Particles";
 import Clouds from "./Clouds";
 import Rain from "./Rain";
 import Helicopter from "./Helicopter";
-import HotAirBalloon from "./HotAirBalloon";
-import Blimp from "./Blimp";
 
 const HALF_PI = Math.PI / 2;
 const UP = new THREE.Vector3(0, 1, 0);
@@ -60,7 +58,6 @@ function Rig({
     const r = rig.current;
     const dt = Math.min(rawDt, 0.05);
 
-    // Global tree -> QR morph value (read by every animated child)
     morph.p = THREE.MathUtils.damp(morph.p, qr ? 1 : 0, 2.6, dt);
 
     if (!qr && !r.dragging) r.azT += dt * 0.055;
@@ -77,8 +74,8 @@ function Rig({
 
     // QR mode bounds: padding included so full boundary finder patterns are comfortably readable
     const fitQR = isPortrait
-      ? ((total * 0.6) / (tanF * aspect)) * 1.18
-      : (total * 0.6) / tanF;
+      ? ((total * 0.60) / (tanF * aspect)) * 1.18
+      : (total * 0.60) / tanF;
 
     const distGoal = (qr ? fitQR : fitTree) * r.dT;
     const elGoal = qr ? 1.545 : r.elT;
@@ -86,9 +83,7 @@ function Rig({
 
     // Center target Y offset (portrait screens need a slight upward shift to clear bottom UI bars)
     const targetYGoal = qr
-      ? isPortrait
-        ? 1.2
-        : 0
+      ? isPortrait ? 1.2 : 0
       : Math.min(3.2, total * 0.09);
 
     r.az = THREE.MathUtils.damp(r.az, azGoal, 3.2, dt);
@@ -103,16 +98,11 @@ function Rig({
       Math.cos(r.az) * ce * r.dist,
     );
 
-    // Blend the up-vector toward the camera's horizontal "north" as we go top-down
     const f = THREE.MathUtils.clamp((r.el - 1.25) / (1.545 - 1.25), 0, 1);
-    const up = UP.clone().lerp(
-      new THREE.Vector3(-Math.sin(r.az), 0, -Math.cos(r.az)),
-      f * f * (3 - 2 * f),
-    );
+    const up = UP.clone().lerp(new THREE.Vector3(-Math.sin(r.az), 0, -Math.cos(r.az)), f * f * (3 - 2 * f));
     camera.up.copy(up.normalize());
     camera.lookAt(0, r.ty, 0);
 
-    // Atmosphere follows palette smoothly
     const fog = scene.fog as THREE.Fog | null;
     if (fog) {
       fog.color.lerp(fogTarget.set(palette.fog), 1 - Math.exp(-dt * 3));
@@ -177,7 +167,6 @@ export default function Scene({
     (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
     e.currentTarget.classList.add("scene-grabbing");
   };
-
   const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     const r = rig.current;
     if (!r.dragging) return;
@@ -191,7 +180,6 @@ export default function Scene({
       r.elT = THREE.MathUtils.clamp(r.elT + dy * 0.0042, 0.22, 1.2);
     }
   };
-
   const endDrag = (e: React.PointerEvent<HTMLDivElement>) => {
     const r = rig.current;
     if (!r.dragging) return;
@@ -199,7 +187,6 @@ export default function Scene({
     e.currentTarget.classList.remove("scene-grabbing");
     if (r.moved < 8 && performance.now() - r.downAt < 450) toggleRef.current();
   };
-
   const onWheel = (e: React.WheelEvent<HTMLDivElement>) => {
     const r = rig.current;
     r.dT = THREE.MathUtils.clamp(r.dT * (1 + e.deltaY * 0.0009), 0.62, 1.9);
@@ -217,11 +204,7 @@ export default function Scene({
     <div
       className="scene-grab absolute inset-0 z-10 focus:outline-none"
       role="button"
-      aria-label={
-        qr
-          ? "QR code view — press Enter to regrow the tree"
-          : "3D tree — press Enter to reveal the QR code"
-      }
+      aria-label={qr ? "QR code view — press Enter to regrow the tree" : "3D tree — press Enter to reveal the QR code"}
       tabIndex={0}
       onKeyDown={(e) => {
         if (e.key === "Enter") toggleRef.current();
@@ -246,11 +229,7 @@ export default function Scene({
         <Rig rig={rig} qr={qr} total={grid.total} palette={palette} hemi={hemi} />
         <fog attach="fog" args={[palette.fog, 70, 320]} />
 
-        {/* Ambient & Directional Lighting */}
-        <hemisphereLight
-          ref={hemi}
-          args={[palette.hemiSky, palette.hemiGround, rain ? 0.8 : 1.05]}
-        />
+        <hemisphereLight ref={hemi} args={[palette.hemiSky, palette.hemiGround, rain ? 0.8 : 1.05]} />
         <directionalLight
           position={[grid.total * 0.7, grid.total * 1.1, grid.total * 0.42]}
           intensity={rain ? 1.4 : 2.4}
@@ -271,29 +250,18 @@ export default function Scene({
           color="#cfe2ff"
         />
 
-        {/* Core Diorama & Tree Layers */}
         <Ground grid={grid} palette={palette} seed={seed} />
         <Covers grid={grid} zone={zone} palette={palette} seed={seed} />
         <Tree seed={seed} palette={palette} grid={grid} zone={zone} />
-
-        {/* Atmosphere & Sky Elements */}
         <Birds
           orbit={Math.min(zone.n * 0.6 + 3.5, grid.total * 0.42)}
           alt={14 + zone.n * 0.25}
           season={seasonIndex}
         />
-        <Particles
-          palette={palette}
-          spread={grid.total * 0.52}
-          top={grid.total * 0.52 + 5}
-        />
+        <Particles palette={palette} spread={grid.total * 0.52} top={grid.total * 0.52 + 5} />
         <Clouds total={grid.total} />
         {rain && <Rain total={grid.total} />}
-
-        {/* Aerial Vehicles */}
         <Helicopter orbit={grid.total * 0.62} alt={16} />
-        <HotAirBalloon orbit={grid.total * 0.74} alt={17} speed={0.2} />
-        <Blimp orbit={grid.total * 0.96} alt={21} speed={0.28} />
       </Canvas>
     </div>
   );
