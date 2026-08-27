@@ -239,7 +239,7 @@ export default function Scene({
         <Rig rig={rig} qr={qr} total={grid.total} palette={palette} hemi={hemi} />
         <fog attach="fog" args={[palette.fog, 70, 320]} />
 
-        {/* Ambient & Directional Lighting */}
+        {/* Lighting */}
         <hemisphereLight
           ref={hemi}
           args={[palette.hemiSky, palette.hemiGround, rain ? 0.8 : 1.05]}
@@ -269,7 +269,7 @@ export default function Scene({
         <Covers grid={grid} zone={zone} palette={palette} seed={seed} />
         <Tree seed={seed} palette={palette} grid={grid} zone={zone} />
 
-        {/* Atmosphere & Sky Elements */}
+        {/* Atmosphere */}
         <Birds
           orbit={Math.min(zone.n * 0.6 + 3.5, grid.total * 0.42)}
           alt={14 + zone.n * 0.25}
@@ -283,10 +283,12 @@ export default function Scene({
         <Clouds total={grid.total} />
         {rain && <Rain total={grid.total} />}
 
-        {/* Aerial Vehicles */}
+        {/* Helicopter towing "Bryan R. Cañaveral" */}
         <Helicopter orbit={grid.total * 0.62} alt={16} />
-        <HotAirBalloon orbit={grid.total * 0.74} alt={17} speed={0.2} />
-        <Blimp orbit={grid.total * 0.96} alt={21} speed={0.28} />
+
+        {/* Hot Air Balloon (Motionless over tree top) & Slow Outer Blimp */}
+        <HotAirBalloon offsetX={1.5} offsetZ={-2.2} alt={21} />
+        <Blimp orbit={grid.total * 1.05} alt={24} speed={0.045} />
       </Canvas>
     </div>
   );

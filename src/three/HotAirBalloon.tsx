@@ -3,22 +3,26 @@ import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { morph, smooth01, clamp01, easeOutBack } from "./shared";
 
-// Procedural vertical-striped colorful balloon canvas texture
+// 12-stripe vibrant rainbow canvas texture
 function createBalloonTexture() {
   const canvas = document.createElement("canvas");
-  canvas.width = 1024;
-  canvas.height = 512;
+  canvas.width = 1536;
+  canvas.height = 768;
   const ctx = canvas.getContext("2d");
 
   if (ctx) {
     const stripes = [
-      "#ef4444", // Red
+      "#e11d48", // Rose Red
       "#f97316", // Orange
+      "#f59e0b", // Amber
       "#eab308", // Yellow
-      "#22c55e", // Green
+      "#84cc16", // Lime
+      "#10b981", // Emerald
       "#06b6d4", // Cyan
-      "#3b82f6", // Blue
-      "#a855f7", // Purple
+      "#0ea5e9", // Sky Blue
+      "#3b82f6", // Royal Blue
+      "#6366f1", // Indigo
+      "#8b5cf6", // Violet
       "#ec4899", // Pink
     ];
 
@@ -26,10 +30,16 @@ function createBalloonTexture() {
     for (let i = 0; i < stripes.length; i++) {
       ctx.fillStyle = stripes[i];
       ctx.fillRect(i * stripeW, 0, stripeW, canvas.height);
-      // Subtle fabric seam shadow
-      ctx.fillStyle = "rgba(0,0,0,0.08)";
+
+      // Shadowed vertical gores / seams for 3D depth
+      ctx.fillStyle = "rgba(0, 0, 0, 0.12)";
       ctx.fillRect(i * stripeW, 0, 4, canvas.height);
       ctx.fillRect((i + 1) * stripeW - 4, 0, 4, canvas.height);
+
+      // Horizontal decorative starburst accent bands
+      ctx.fillStyle = "rgba(255, 255, 255, 0.22)";
+      ctx.fillRect(i * stripeW, canvas.height * 0.38, stripeW, 24);
+      ctx.fillRect(i * stripeW, canvas.height * 0.44, stripeW, 14);
     }
   }
 
@@ -40,25 +50,59 @@ function createBalloonTexture() {
   return tex;
 }
 
+// Generates an authentic hot air balloon teardrop profile via LatheGeometry
+function createBalloonEnvelopeGeometry() {
+  const points: THREE.Vector2[] = [];
+  const segments = 40;
+
+  // Real aerodynamic profile: Bulbous dome tapering into a slim conical throat
+  for (let i = 0; i <= segments; i++) {
+    const t = i / segments; // 0 (bottom throat) to 1 (top crown)
+    const y = -1.6 + t * 4.4; // Total height = 4.4 units
+
+    let radius = 0;
+    if (t < 0.35) {
+      // Conical lower throat opening
+      const u = t / 0.35;
+      radius = 0.48 + u * 1.35;
+    } else if (t < 0.8) {
+      // Swelling mid-belly
+      const u = (t - 0.35) / 0.45;
+      radius = 1.83 + Math.sin(u * Math.PI * 0.5) * 0.42; // Peaks at ~2.25
+    } else {
+      // Rounded top crown cap
+      const u = (t - 0.8) / 0.2;
+      radius = 2.25 * Math.cos(u * Math.PI * 0.5);
+    }
+
+    points.push(new THREE.Vector2(Math.max(0.01, radius), y));
+  }
+
+  return new THREE.LatheGeometry(points, 36);
+}
+
 export default function HotAirBalloon({
-  orbit = 18,
-  alt = 17,
-  speed = 0.22,
+  offsetX = 1.5,
+  offsetZ = -2.2,
+  alt = 21,
 }: {
-  orbit?: number;
+  offsetX?: number;
+  offsetZ?: number;
   alt?: number;
-  speed?: number;
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const burnerRef = useRef<THREE.PointLight>(null);
+  const flameMeshRef = useRef<THREE.Mesh>(null);
   const intro = useRef(0);
 
   // Geometries
-  const balloonGeo = useMemo(() => new THREE.SphereGeometry(1.8, 32, 24), []);
-  const basketGeo = useMemo(() => new THREE.BoxGeometry(0.8, 0.6, 0.8), []);
-  const burnerGeo = useMemo(() => new THREE.CylinderGeometry(0.12, 0.12, 0.18, 12), []);
-  const cableGeo = useMemo(() => new THREE.CylinderGeometry(0.015, 0.015, 1.4, 6), []);
-  const collarGeo = useMemo(() => new THREE.TorusGeometry(0.5, 0.08, 12, 24), []);
+  const envelopeGeo = useMemo(() => createBalloonEnvelopeGeometry(), []);
+  const collarGeo = useMemo(() => new THREE.TorusGeometry(0.5, 0.06, 12, 32), []);
+  const basketGeo = useMemo(() => new THREE.BoxGeometry(0.72, 0.58, 0.72), []);
+  const basketRimGeo = useMemo(() => new THREE.BoxGeometry(0.8, 0.08, 0.8), []);
+  const burnerGeo = useMemo(() => new THREE.CylinderGeometry(0.14, 0.14, 0.16, 12), []);
+  const flameGeo = useMemo(() => new THREE.ConeGeometry(0.12, 0.32, 8), []);
+  const cableGeo = useMemo(() => new THREE.CylinderGeometry(0.012, 0.012, 1.2, 6), []);
 
   // Textures & Materials
   const balloonTex = useMemo(() => createBalloonTexture(), []);
@@ -66,18 +110,28 @@ export default function HotAirBalloon({
     () =>
       new THREE.MeshStandardMaterial({
         map: balloonTex,
-        roughness: 0.6,
+        roughness: 0.55,
         metalness: 0.05,
+        side: THREE.DoubleSide,
       }),
     [balloonTex],
   );
 
-  const basketMat = useMemo(
+  const wickerMat = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
-        color: "#854d0e", // Wicker brown
+        color: "#92400e", // Natural wicker
         roughness: 0.95,
         metalness: 0,
+      }),
+    [],
+  );
+
+  const wickerTrimMat = useMemo(
+    () =>
+      new THREE.MeshStandardMaterial({
+        color: "#78350f",
+        roughness: 0.9,
       }),
     [],
   );
@@ -85,8 +139,9 @@ export default function HotAirBalloon({
   const cableMat = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
-        color: "#1c1917",
+        color: "#292524",
         roughness: 0.5,
+        metalness: 0.5,
       }),
     [],
   );
@@ -94,37 +149,53 @@ export default function HotAirBalloon({
   const burnerMat = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
-        color: "#44403c",
-        metalness: 0.8,
-        roughness: 0.3,
+        color: "#52525b",
+        metalness: 0.85,
+        roughness: 0.25,
+      }),
+    [],
+  );
+
+  const flameMat = useMemo(
+    () =>
+      new THREE.MeshBasicMaterial({
+        color: "#ffbe0b",
       }),
     [],
   );
 
   useEffect(() => {
     return () => {
-      balloonGeo.dispose();
-      basketGeo.dispose();
-      burnerGeo.dispose();
-      cableGeo.dispose();
+      envelopeGeo.dispose();
       collarGeo.dispose();
+      basketGeo.dispose();
+      basketRimGeo.dispose();
+      burnerGeo.dispose();
+      flameGeo.dispose();
+      cableGeo.dispose();
       balloonTex.dispose();
       balloonMat.dispose();
-      basketMat.dispose();
+      wickerMat.dispose();
+      wickerTrimMat.dispose();
       cableMat.dispose();
       burnerMat.dispose();
+      flameMat.dispose();
     };
   }, [
-    balloonGeo,
-    basketGeo,
-    burnerGeo,
-    cableGeo,
+    envelopeGeo,
     collarGeo,
+    basketGeo,
+    basketRimGeo,
+    burnerGeo,
+    flameGeo,
+    cableGeo,
     balloonTex,
     balloonMat,
-    basketMat,
+    wickerMat,
+    wickerTrimMat,
     cableMat,
     burnerMat,
+    flameMat,
   ]);
 
   useFrame((state, rawDt) => {
@@ -139,71 +210,78 @@ export default function HotAirBalloon({
 
     const g = groupRef.current;
     if (g) {
-      const angle = t * speed;
-      const x = Math.cos(angle) * orbit;
-      const z = Math.sin(angle) * orbit;
-      const y = alt + Math.sin(t * 0.8) * 0.6; // Gentle vertical thermal bobbing
+      // Organic, motionless hovering above the canopy
+      const driftX = offsetX + Math.sin(t * 0.12) * 0.28;
+      const driftZ = offsetZ + Math.cos(t * 0.1) * 0.28;
+      const driftY = alt + Math.sin(t * 0.4) * 0.22;
 
-      g.position.set(x, y, z);
-      // Gentle sway and slow yaw rotation
+      g.position.set(driftX, driftY, driftZ);
       g.rotation.set(
-        Math.sin(t * 0.7) * 0.04,
-        t * 0.1,
-        Math.cos(t * 0.6) * 0.04,
+        Math.sin(t * 0.25) * 0.015,
+        t * 0.018,
+        Math.cos(t * 0.2) * 0.015,
       );
-      g.scale.setScalar(Math.max(0.0001, scale));
+      g.scale.setScalar(Math.max(0.0001, 1.08 * scale));
       g.visible = scale > 0.02;
     }
 
-    // Realistic burner flicker
+    // Dynamic burner glow & flame flicker
+    const flicker = Math.sin(t * 14) * 0.3 + Math.cos(t * 22) * 0.15;
     if (burnerRef.current) {
-      burnerRef.current.intensity = 1.2 + Math.sin(t * 18) * 0.8 + (Math.random() - 0.5) * 0.4;
+      burnerRef.current.intensity = Math.max(0.4, 1.3 + flicker);
+    }
+    if (flameMeshRef.current) {
+      flameMeshRef.current.scale.set(1 + flicker * 0.2, 1 + flicker * 0.4, 1 + flicker * 0.2);
     }
   });
 
   return (
     <group ref={groupRef}>
-      {/* Tear-drop styled Hot Air Balloon Envelope */}
-      <group position={[0, 1.4, 0]}>
-        <mesh
-          geometry={balloonGeo}
-          material={balloonMat}
-          scale={[1.15, 1.45, 1.15]}
-        />
-        {/* Balloon Collar Ring */}
-        <mesh
-          geometry={collarGeo}
-          material={cableMat}
-          position={[0, -1.85, 0]}
-          rotation={[Math.PI / 2, 0, 0]}
-        />
-      </group>
+      {/* Aerodynamic Teardrop Envelope */}
+      <mesh
+        geometry={envelopeGeo}
+        material={balloonMat}
+        position={[0, 1.2, 0]}
+        castShadow
+      />
 
-      {/* Burner & Fire Glow */}
-      <group position={[0, -0.6, 0]}>
+      {/* Reinforced Throat Collar Ring */}
+      <mesh
+        geometry={collarGeo}
+        material={cableMat}
+        position={[0, -0.42, 0]}
+        rotation={[Math.PI / 2, 0, 0]}
+      />
+
+      {/* Burner Rig & Fire Flame */}
+      <group position={[0, -0.78, 0]}>
         <mesh geometry={burnerGeo} material={burnerMat} />
+        <mesh
+          ref={flameMeshRef}
+          geometry={flameGeo}
+          material={flameMat}
+          position={[0, 0.18, 0]}
+        />
         <pointLight
           ref={burnerRef}
-          color="#ff7a00"
-          distance={4}
+          color="#ff7900"
+          distance={4.5}
           decay={2}
-          intensity={1.5}
+          intensity={1.4}
         />
       </group>
 
       {/* 4 Corner Rigging Cables */}
-      <mesh geometry={cableGeo} material={cableMat} position={[-0.32, -0.9, -0.32]} rotation={[-0.14, 0, 0.14]} />
-      <mesh geometry={cableGeo} material={cableMat} position={[0.32, -0.9, -0.32]} rotation={[-0.14, 0, -0.14]} />
-      <mesh geometry={cableGeo} material={cableMat} position={[-0.32, -0.9, 0.32]} rotation={[0.14, 0, 0.14]} />
-      <mesh geometry={cableGeo} material={cableMat} position={[0.32, -0.9, 0.32]} rotation={[0.14, 0, -0.14]} />
+      <mesh geometry={cableGeo} material={cableMat} position={[-0.26, -1.22, -0.26]} rotation={[-0.15, 0, 0.15]} />
+      <mesh geometry={cableGeo} material={cableMat} position={[0.26, -1.22, -0.26]} rotation={[-0.15, 0, -0.15]} />
+      <mesh geometry={cableGeo} material={cableMat} position={[-0.26, -1.22, 0.26]} rotation={[0.15, 0, 0.15]} />
+      <mesh geometry={cableGeo} material={cableMat} position={[0.26, -1.22, 0.26]} rotation={[0.15, 0, -0.15]} />
 
-      {/* Wicker Gondola Basket */}
-      <mesh
-        geometry={basketGeo}
-        material={basketMat}
-        position={[0, -1.75, 0]}
-        castShadow
-      />
+      {/* Wicker Gondola Basket & Padded Rim */}
+      <group position={[0, -1.88, 0]}>
+        <mesh geometry={basketGeo} material={wickerMat} castShadow />
+        <mesh geometry={basketRimGeo} material={wickerTrimMat} position={[0, 0.3, 0]} />
+      </group>
     </group>
   );
 }
