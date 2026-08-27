@@ -18,68 +18,82 @@ export interface ShareState {
   bannerColor?: string;
 }
 
-/**
- * Ultra-compact single payload packer:
- * Combines URL, Banner Text, and Theme Label into a single masked string separated by delimiters (\x1f / Unit Separator).
- */
-export function packData(rawUrl: string, bannerText?: string, label?: string): string {
-  if (!rawUrl && !bannerText && !label) return "";
+const SEP = "\x1e"; // Record separator for minimum byte overhead
 
-  let cleanUrl = (rawUrl || "").trim();
-  let prefixFlag = "0";
-  if (cleanUrl.startsWith("https://")) {
-    prefixFlag = "s";
-    cleanUrl = cleanUrl.slice(8);
-  } else if (cleanUrl.startsWith("http://")) {
-    prefixFlag = "h";
-    cleanUrl = cleanUrl.slice(7);
+/**
+ * Packs all state variables into a single URL-safe string.
+ * Structure: [flags, url, bannerText, label, leafHex, groundHex, bannerColorHex, salt]
+ */
+export function packState(state: ShareState): string {
+  let url = (state.url || "").trim();
+  let proto = 0; // 0: raw, 1: https://, 2: http://, 3: https://www.
+
+  if (url.startsWith("https://www.")) {
+    proto = 3;
+    url = url.slice(12);
+  } else if (url.startsWith("https://")) {
+    proto = 1;
+    url = url.slice(8);
+  } else if (url.startsWith("http://")) {
+    proto = 2;
+    url = url.slice(7);
   }
 
-  const bt = (bannerText && bannerText !== "Bryan R. Cañaveral") ? bannerText.trim() : "";
-  const lbl = (label && label !== "Editable") ? label.trim() : "";
+  const s = state.season ?? 0;
+  const bt = state.bannerText && state.bannerText !== "Bryan R. Cañaveral" ? state.bannerText.trim() : "";
+  const lbl = state.label && state.label !== "Editable" ? state.label.trim() : "";
+  const lf = state.leaf ? state.leaf.replace("#", "") : "";
+  const gd = state.ground ? state.ground.replace("#", "") : "";
+  const bc = state.bannerColor && state.bannerColor.toLowerCase() !== "#e11d48" ? state.bannerColor.replace("#", "") : "";
+  const r = state.salt ? state.salt.toString(36) : "";
 
-  // Pack as: [prefixFlag][cleanUrl] ~ [bt] ~ [lbl]
-  const rawPayload = `${prefixFlag}${cleanUrl}\x1f${bt}\x1f${lbl}`;
+  // Combine into a compact array, trimming empty trailing elements
+  const items = [`${proto}${s}`, url, bt, lbl, lf, gd, bc, r];
+  while (items.length > 2 && items[items.length - 1] === "") {
+    items.pop();
+  }
 
+  const raw = items.join(SEP);
   try {
-    return btoa(encodeURIComponent(rawPayload))
+    return btoa(encodeURIComponent(raw))
       .replace(/\+/g, "-")
       .replace(/\//g, "_")
       .replace(/=+$/, "");
   } catch {
-    return encodeURIComponent(rawPayload);
+    return encodeURIComponent(raw);
   }
 }
 
 /**
- * Unpacks the combined masked string into { url, bannerText, label }
+ * Unpacks the ultra-compact `#z=` payload back to ShareState
  */
-export function unpackData(packed: string): { url?: string; bannerText?: string; label?: string } {
+export function unpackState(packed: string): Partial<ShareState> {
   if (!packed) return {};
-
   try {
     let base64 = packed.replace(/-/g, "+").replace(/_/g, "/");
-    while (base64.length % 4) {
-      base64 += "=";
-    }
-    const decoded = decodeURIComponent(atob(base64));
-    const parts = decoded.split("\x1f");
+    while (base64.length % 4) base64 += "=";
+    const raw = decodeURIComponent(atob(base64));
+    const parts = raw.split(SEP);
 
-    const urlPart = parts[0] || "";
-    const bannerText = parts[1] || undefined;
-    const label = parts[2] || undefined;
+    const flags = parts[0] || "00";
+    const proto = parseInt(flags[0] || "0", 10);
+    const season = parseInt(flags.slice(1) || "0", 10);
 
-    let url: string | undefined = undefined;
-    if (urlPart) {
-      const prefixFlag = urlPart[0];
-      const cleanUrl = urlPart.slice(1);
-      let prefix = "";
-      if (prefixFlag === "s") prefix = "https://";
-      else if (prefixFlag === "h") prefix = "http://";
-      url = prefix ? `${prefix}${cleanUrl}` : cleanUrl;
+    let url = parts[1] || "";
+    if (url) {
+      if (proto === 1) url = `https://${url}`;
+      else if (proto === 2) url = `http://${url}`;
+      else if (proto === 3) url = `https://www.${url}`;
     }
 
-    return { url, bannerText, label };
+    const bannerText = parts[2] || undefined;
+    const label = parts[3] || undefined;
+    const leaf = parts[4] ? `#${parts[4]}` : null;
+    const ground = parts[5] ? `#${parts[5]}` : null;
+    const bannerColor = parts[6] ? `#${parts[6]}` : undefined;
+    const salt = parts[7] ? parseInt(parts[7], 36) : 0;
+
+    return { url, season, bannerText, label, leaf, ground, bannerColor, salt };
   } catch {
     return {};
   }
@@ -117,71 +131,53 @@ export async function downloadPng(text: string, darkColor: string, lightColor: s
   a.click();
 }
 
-/**
- * Reads hash parameters, extracting the joined payload from `m`
- */
 export function readHash(): ShareState {
   if (typeof window === "undefined") return { salt: 0 };
   const rawHash = window.location.hash.replace(/^#/, "");
   const params = new URLSearchParams(rawHash || window.location.search);
 
-  const maskedParam = params.get("m");
-  const unpacked = maskedParam ? unpackData(maskedParam) : {};
+  const z = params.get("z");
+  if (z) {
+    const unpacked = unpackState(z);
+    return {
+      url: unpacked.url,
+      season: unpacked.season,
+      leaf: unpacked.leaf ?? null,
+      ground: unpacked.ground ?? null,
+      salt: unpacked.salt ?? 0,
+      label: unpacked.label,
+      bannerText: unpacked.bannerText,
+      bannerColor: unpacked.bannerColor,
+    };
+  }
 
-  const resolvedUrl = unpacked.url ?? params.get("u") ?? undefined;
-  const resolvedBannerText = unpacked.bannerText ?? params.get("bt") ?? undefined;
-  const resolvedLabel = unpacked.label ?? params.get("lbl") ?? undefined;
-
+  // Fallback for legacy parameters
+  const rawParam = params.get("u");
   const s = params.get("s");
   const lf = params.get("lf");
   const gd = params.get("gd");
   const r = params.get("r");
+  const bt = params.get("bt");
   const bc = params.get("bc");
+  const lbl = params.get("lbl");
 
   return {
-    url: resolvedUrl,
+    url: rawParam ?? undefined,
     season: s !== null ? Number(s) : undefined,
     leaf: lf ? `#${lf}` : null,
     ground: gd ? `#${gd}` : null,
     salt: r !== null ? Number(r) : 0,
-    label: resolvedLabel,
-    bannerText: resolvedBannerText,
+    label: lbl ?? undefined,
+    bannerText: bt ?? undefined,
     bannerColor: bc ? `#${bc}` : undefined,
   };
 }
 
-/**
- * Writes unified packed state to the browser hash
- */
 export function writeHash(state: ShareState) {
   if (typeof window === "undefined") return;
-  const params = new URLSearchParams();
-
-  // Pack URL, bannerText, and label into a single `m` key
-  if (state.url || state.bannerText || state.label) {
-    const packed = packData(state.url || "", state.bannerText, state.label);
-    if (packed) params.set("m", packed);
-  }
-
-  if (state.season !== undefined && state.season !== 0) {
-    params.set("s", String(state.season));
-  }
-  if (state.leaf) {
-    params.set("lf", state.leaf.replace("#", ""));
-  }
-  if (state.ground) {
-    params.set("gd", state.ground.replace("#", ""));
-  }
-  if (state.salt) {
-    params.set("r", String(state.salt));
-  }
-  if (state.bannerColor && state.bannerColor.toLowerCase() !== "#e11d48") {
-    params.set("bc", state.bannerColor.replace("#", ""));
-  }
-
-  const hashStr = params.toString();
-  if (hashStr) {
-    window.history.replaceState(null, "", `#${hashStr}`);
+  const packed = packState(state);
+  if (packed) {
+    window.history.replaceState(null, "", `#z=${packed}`);
   } else {
     window.history.replaceState(null, "", window.location.pathname);
   }

@@ -5,7 +5,7 @@ import Scene from "./three/Scene";
 import Controls from "./components/Controls";
 import PinLogin from "./components/PinLogin";
 import { FooterBits, Header, Hint, Toast, Watermark } from "./components/Overlays";
-import { buildGrid, downloadPng, packData, readHash, writeHash, type ShareState } from "./lib/qr";
+import { buildGrid, downloadPng, packState, readHash, writeHash, type ShareState } from "./lib/qr";
 import { resolvePalette, SEASONS } from "./lib/palettes";
 import { hashSeed } from "./lib/random";
 
@@ -35,7 +35,7 @@ export default function App() {
     if (typeof window === "undefined") return false;
     const search = new URLSearchParams(window.location.search);
     const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
-    return search.get("v") === "1" || hash.get("v") === "1";
+    return search.get("v") === "1" || hash.get("v") === "1" || search.has("z") || hash.has("z");
   }, []);
 
   const toastTimer = useRef<number | undefined>(undefined);
@@ -97,30 +97,25 @@ export default function App() {
   }, [committed, season, leaf, groundColor, salt, isMinimalView, customThemeLabel, bannerText, bannerColor]);
 
   const onCopy = useCallback(() => {
-    const params = new URLSearchParams();
+    // Generates the single shortest #z= hash payload
+    const packed = packState({
+      url: committed,
+      season,
+      leaf,
+      ground: groundColor,
+      salt,
+      label: customThemeLabel,
+      bannerText,
+      bannerColor,
+    });
 
-    // 1. Pack URL, Helicopter Banner Text, and Theme Label into a single masked key
-    const packed = packData(committed, bannerText, customThemeLabel);
-    if (packed) params.set("m", packed);
-
-    // 2. Add remaining configuration if customized
-    if (season !== 0) params.set("s", String(season));
-    if (leaf) params.set("lf", leaf.replace("#", ""));
-    if (groundColor) params.set("gd", groundColor.replace("#", ""));
-    if (salt !== 0) params.set("r", String(salt));
-    if (bannerColor && bannerColor.toLowerCase() !== "#e11d48") {
-      params.set("bc", bannerColor.replace("#", ""));
-    }
-
-    params.set("v", "1");
-
-    const shareUrl = `${window.location.origin}${window.location.pathname}#${params.toString()}`;
+    const shareUrl = `${window.location.origin}${window.location.pathname}#z=${packed}`;
 
     const done = () => {
       setCopied(true);
       window.clearTimeout(copyTimer.current);
       copyTimer.current = window.setTimeout(() => setCopied(false), 1800);
-      notify("Shortened share link copied");
+      notify("Shortest share link copied");
     };
 
     if (navigator.clipboard?.writeText) {
@@ -132,12 +127,12 @@ export default function App() {
     }
   }, [
     committed,
-    bannerText,
-    customThemeLabel,
     season,
     leaf,
     groundColor,
     salt,
+    customThemeLabel,
+    bannerText,
     bannerColor,
     notify,
   ]);
@@ -240,7 +235,7 @@ export default function App() {
       />
       <div className="noise pointer-events-none fixed inset-0 z-20 opacity-25" />
 
-      {/* Security PIN Login Pad Modal */}
+      {/* Security PIN Login Modal */}
       <AnimatePresence>
         {showLoginModal && (
           <PinLogin
