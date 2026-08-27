@@ -3,6 +3,8 @@ import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { morph, smooth01 } from "./shared";
 
+const LOGO_URL = "https://i.imgur.com/1xINYng.png";
+
 // 12-stripe vibrant rainbow canvas texture
 function createBalloonTexture() {
   const canvas = document.createElement("canvas");
@@ -80,7 +82,7 @@ function createBalloonEnvelopeGeometry() {
 export default function HotAirBalloon({
   offsetX = 5.5,
   offsetZ = -4.0,
-  alt = 22, // Placed high in the sky frame, safely clear of the canopy top (~13)
+  alt = 20,
 }: {
   offsetX?: number;
   offsetZ?: number;
@@ -98,9 +100,19 @@ export default function HotAirBalloon({
   const burnerGeo = useMemo(() => new THREE.CylinderGeometry(0.14, 0.14, 0.16, 12), []);
   const flameGeo = useMemo(() => new THREE.ConeGeometry(0.12, 0.32, 8), []);
   const cableGeo = useMemo(() => new THREE.CylinderGeometry(0.012, 0.012, 1.2, 6), []);
+  const logoBadgeGeo = useMemo(() => new THREE.CircleGeometry(0.95, 32), []);
+  const badgeFrameGeo = useMemo(() => new THREE.TorusGeometry(0.97, 0.04, 12, 32), []);
 
   // Textures & Materials
   const balloonTex = useMemo(() => createBalloonTexture(), []);
+  const logoTex = useMemo(() => {
+    const loader = new THREE.TextureLoader();
+    loader.setCrossOrigin("anonymous");
+    const tex = loader.load(LOGO_URL);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }, []);
+
   const balloonMat = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
@@ -110,6 +122,35 @@ export default function HotAirBalloon({
         side: THREE.DoubleSide,
       }),
     [balloonTex],
+  );
+
+  const logoMat = useMemo(
+    () =>
+      new THREE.MeshBasicMaterial({
+        map: logoTex,
+        transparent: true,
+        side: THREE.DoubleSide,
+      }),
+    [logoTex],
+  );
+
+  const logoBackdropMat = useMemo(
+    () =>
+      new THREE.MeshBasicMaterial({
+        color: "#ffffff",
+        side: THREE.DoubleSide,
+      }),
+    [],
+  );
+
+  const goldTrimMat = useMemo(
+    () =>
+      new THREE.MeshStandardMaterial({
+        color: "#f59e0b",
+        roughness: 0.3,
+        metalness: 0.7,
+      }),
+    [],
   );
 
   const wickerMat = useMemo(
@@ -168,8 +209,14 @@ export default function HotAirBalloon({
       burnerGeo.dispose();
       flameGeo.dispose();
       cableGeo.dispose();
+      logoBadgeGeo.dispose();
+      badgeFrameGeo.dispose();
       balloonTex.dispose();
+      logoTex.dispose();
       balloonMat.dispose();
+      logoMat.dispose();
+      logoBackdropMat.dispose();
+      goldTrimMat.dispose();
       wickerMat.dispose();
       wickerTrimMat.dispose();
       cableMat.dispose();
@@ -184,8 +231,14 @@ export default function HotAirBalloon({
     burnerGeo,
     flameGeo,
     cableGeo,
+    logoBadgeGeo,
+    badgeFrameGeo,
     balloonTex,
+    logoTex,
     balloonMat,
+    logoMat,
+    logoBackdropMat,
+    goldTrimMat,
     wickerMat,
     wickerTrimMat,
     cableMat,
@@ -200,7 +253,6 @@ export default function HotAirBalloon({
 
     const g = groupRef.current;
     if (g) {
-      // Subtle atmospheric horizontal air drift with static locked altitude (no dipping/dropping)
       const driftX = offsetX + Math.sin(t * 0.05) * 0.2;
       const driftZ = offsetZ + Math.cos(t * 0.04) * 0.2;
 
@@ -229,6 +281,20 @@ export default function HotAirBalloon({
         position={[0, 1.2, 0]}
         castShadow
       />
+
+      {/* Top Logo Badges (Quad Placement around the upper dome) */}
+      {[0, Math.PI / 2, Math.PI, (3 * Math.PI) / 2].map((rotY, idx) => (
+        <group key={idx} rotation={[0, rotY, 0]}>
+          <group position={[0, 2.7, 1.86]} rotation={[-0.32, 0, 0]}>
+            {/* White Circular Disc Base */}
+            <mesh geometry={logoBadgeGeo} material={logoBackdropMat} position={[0, 0, -0.01]} />
+            {/* Logo Texture */}
+            <mesh geometry={logoBadgeGeo} material={logoMat} position={[0, 0, 0.01]} />
+            {/* Gold Trim Ring */}
+            <mesh geometry={badgeFrameGeo} material={goldTrimMat} position={[0, 0, 0.012]} />
+          </group>
+        </group>
+      ))}
 
       {/* Throat Collar */}
       <mesh
