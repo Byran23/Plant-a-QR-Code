@@ -78,9 +78,9 @@ function createBalloonEnvelopeGeometry() {
 }
 
 export default function HotAirBalloon({
-  offsetX = 8.5,
-  offsetZ = 3.5,
-  alt = 100,
+  offsetX = 4.5,
+  offsetZ = -3.5,
+  alt = 96,
 }: {
   offsetX?: number;
   offsetZ?: number;
