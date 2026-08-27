@@ -5,7 +5,7 @@ import Scene from "./three/Scene";
 import Controls from "./components/Controls";
 import PinLogin from "./components/PinLogin";
 import { FooterBits, Header, Hint, Toast, Watermark } from "./components/Overlays";
-import { buildGrid, downloadPng, readHash, writeHash, type ShareState } from "./lib/qr";
+import { buildGrid, downloadPng, maskUrl, readHash, writeHash, type ShareState } from "./lib/qr";
 import { resolvePalette, SEASONS } from "./lib/palettes";
 import { hashSeed } from "./lib/random";
 
@@ -17,18 +17,19 @@ export default function App() {
   const [committed, setCommitted] = useState(boot.url ?? DEFAULT_URL);
   const [season, setSeason] = useState(boot.season ?? 0);
   const [rain, setRain] = useState(false);
-  const [leaf, setLeaf] = useState<string | null>(boot.leaf);
-  const [groundColor, setGroundColor] = useState<string | null>(boot.ground);
+  const [leaf, setLeaf] = useState<string | null>(boot.leaf ?? null);
+  const [groundColor, setGroundColor] = useState<string | null>(boot.ground ?? null);
   const [salt, setSalt] = useState(boot.salt);
   const [qr, setQr] = useState(false);
   const [toast, setToast] = useState<{ id: number; msg: string } | null>(null);
   const [copied, setCopied] = useState(false);
 
+  // Authentication & Customization States
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
-  const [bannerText, setBannerText] = useState("Bryan R. Cañaveral");
-  const [bannerColor, setBannerColor] = useState("#e11d48");
-  const [customThemeLabel, setCustomThemeLabel] = useState("Editable");
+  const [bannerText, setBannerText] = useState(boot.bannerText ?? "Bryan R. Cañaveral");
+  const [bannerColor, setBannerColor] = useState(boot.bannerColor ?? "#e11d48");
+  const [customThemeLabel, setCustomThemeLabel] = useState(boot.label ?? "Editable");
 
   const isMinimalView = useMemo(() => {
     if (typeof window === "undefined") return false;
@@ -82,17 +83,38 @@ export default function App() {
 
   useEffect(() => {
     if (!isMinimalView) {
-      writeHash({ url: committed, season, leaf, ground: groundColor, salt } satisfies ShareState);
+      writeHash({
+        url: committed,
+        season,
+        leaf,
+        ground: groundColor,
+        salt,
+        label: customThemeLabel,
+        bannerText,
+        bannerColor,
+      } satisfies ShareState);
     }
-  }, [committed, season, leaf, groundColor, salt, isMinimalView]);
+  }, [committed, season, leaf, groundColor, salt, isMinimalView, customThemeLabel, bannerText, bannerColor]);
 
   const onCopy = useCallback(() => {
     const params = new URLSearchParams();
-    params.set("u", committed);
+
+    // Mask the destination URL to hide raw text
+    params.set("m", maskUrl(committed));
+
     if (season !== 0) params.set("s", String(season));
     if (leaf) params.set("lf", leaf.replace("#", ""));
     if (groundColor) params.set("gd", groundColor.replace("#", ""));
     if (salt) params.set("r", String(salt));
+    if (customThemeLabel && customThemeLabel !== "Editable") {
+      params.set("lbl", customThemeLabel);
+    }
+    if (bannerText && bannerText !== "Bryan R. Cañaveral") {
+      params.set("bt", bannerText);
+    }
+    if (bannerColor && bannerColor !== "#e11d48") {
+      params.set("bc", bannerColor.replace("#", ""));
+    }
     params.set("v", "1");
 
     const shareUrl = `${window.location.origin}${window.location.pathname}#${params.toString()}`;
@@ -101,7 +123,7 @@ export default function App() {
       setCopied(true);
       window.clearTimeout(copyTimer.current);
       copyTimer.current = window.setTimeout(() => setCopied(false), 1800);
-      notify("Share link copied — includes direct open link & minimal view");
+      notify("Share link copied — target link is masked");
     };
 
     if (navigator.clipboard?.writeText) {
@@ -111,7 +133,7 @@ export default function App() {
     } else {
       notify("Copy not available — grab URL from address bar");
     }
-  }, [committed, season, leaf, groundColor, salt, notify]);
+  }, [committed, season, leaf, groundColor, salt, customThemeLabel, bannerText, bannerColor, notify]);
 
   const onDownload = useCallback(() => {
     downloadPng(activeGrid.text, palette.qrDark, palette.qrLight)
@@ -147,6 +169,7 @@ export default function App() {
 
   return (
     <div className="relative h-full w-full overflow-hidden font-sans text-stone-900 select-none">
+      {/* Dynamic Seasonal Wallpaper Backdrop */}
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
         <AnimatePresence>
           <motion.div
@@ -210,7 +233,7 @@ export default function App() {
       />
       <div className="noise pointer-events-none fixed inset-0 z-20 opacity-25" />
 
-      {/* PIN Security Modal */}
+      {/* Security PIN Login Pad Modal */}
       <AnimatePresence>
         {showLoginModal && (
           <PinLogin

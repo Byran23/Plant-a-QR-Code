@@ -1,115 +1,156 @@
-import * as QRCode from "qrcode";
-
-/** Quiet zone (in modules) around the real QR matrix — scanners want 4. */
-export const QUIET = 4;
+import QRCode from "qrcode";
 
 export interface QRGrid {
-  /** real module count per side (without quiet zone) */
-  size: number;
-  /** total tiles per side including quiet zone */
-  total: number;
-  /** row-major 0/1, 1 = dark module */
-  data: Uint8Array;
   text: string;
+  size: number;
+  total: number;
+  data: Uint8Array;
 }
 
-export function buildGrid(text: string): QRGrid {
-  // Using 'H' (High - ~30% recovery) so artistic canopy/decorations remain robustly scannable
-  const qr = QRCode.create(text, { errorCorrectionLevel: "H" });
-  const size = qr.modules.size;
-  const total = size + QUIET * 2;
-  const data = new Uint8Array(total * total);
-  for (let r = 0; r < size; r++) {
-    for (let c = 0; c < size; c++) {
-      if (qr.modules.get(r, c)) data[(r + QUIET) * total + (c + QUIET)] = 1;
-    }
-  }
-  return { size, total, data, text };
+export interface ShareState {
+  url?: string;
+  season?: number;
+  leaf?: string | null;
+  ground?: string | null;
+  salt: number;
+  label?: string;
+  bannerText?: string;
+  bannerColor?: string;
 }
 
 /**
- * The central patch of the matrix that the tree's canopy is responsible for.
- * Coordinates are in total-grid space (including the quiet zone).
+ * URL-safe Base64 obfuscation/masking
  */
-export interface ForestZone {
-  x0: number;
-  z0: number;
-  n: number;
+export function maskUrl(rawUrl: string): string {
+  if (!rawUrl) return "";
+  try {
+    const encoded = btoa(encodeURIComponent(rawUrl));
+    // Make URL-safe and trim padding
+    return encoded.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  } catch {
+    return encodeURIComponent(rawUrl);
+  }
 }
 
-export function computeZone(size: number): ForestZone {
-  const center = (size - 1) / 2;
-  // Expands the canopy zone to cover more of the central QR matrix
-  // while staying safely inside the 3 finder patterns (7x7 corner targets)
-  let w = Math.min(Math.floor(size / 2) - 6, 8);
-  if (w < 1) w = Math.max(1, Math.floor(size / 2) - 1);
-  const n = Math.max(3, 2 * w + 1);
-  const start = center - (n - 1) / 2 + QUIET;
-  return { x0: start, z0: start, n };
+export function unmaskUrl(masked: string): string {
+  if (!masked) return "";
+  try {
+    // Restore base64 standard characters
+    let base64 = masked.replace(/-/g, "+").replace(/_/g, "/");
+    while (base64.length % 4) {
+      base64 += "=";
+    }
+    return decodeURIComponent(atob(base64));
+  } catch {
+    try {
+      return decodeURIComponent(masked);
+    } catch {
+      return masked;
+    }
+  }
 }
 
-/** Download a clean, high-resolution PNG with custom sakura styling defaults. */
-export async function downloadPng(
-  text: string,
-  dark = "#d35252", // Sakura QR dark tone matching the rendered palette
-  light = "#f5f3e9", // Warm stone-white background matching the floor tiles
-): Promise<void> {
-  const url = await QRCode.toDataURL(text, {
-    errorCorrectionLevel: "H",
+export function buildGrid(text: string): QRGrid {
+  const qr = QRCode.create(text, { errorCorrectionLevel: "M" });
+  const size = qr.modules.size;
+  const data = new Uint8Array(size * size);
+  for (let r = 0; r < size; r++) {
+    for (let c = 0; c < size; c++) {
+      data[r * size + c] = qr.modules.get(r, c) ? 1 : 0;
+    }
+  }
+  return { text, size, total: size, data };
+}
+
+export function computeZone(size: number) {
+  return { n: size };
+}
+
+export async function downloadPng(text: string, darkColor: string, lightColor: string) {
+  const canvas = document.createElement("canvas");
+  await QRCode.toCanvas(canvas, text, {
+    width: 1024,
     margin: 2,
-    width: 1200,
-    color: { dark, light },
+    color: {
+      dark: darkColor,
+      light: lightColor,
+    },
   });
   const a = document.createElement("a");
-  a.href = url;
-  a.download = "sakura-qr-tree.png";
-  document.body.appendChild(a);
+  a.href = canvas.toDataURL("image/png");
+  a.download = `qrcode-${Date.now()}.png`;
   a.click();
-  a.remove();
 }
 
-/* ------------------------------------------------------------------ */
-/* Shareable hash state — everything lives client-side, in the URL.    */
-/* ------------------------------------------------------------------ */
-
-export interface ShareState {
-  url: string | null;
-  season: number | null;
-  leaf: string | null;
-  ground: string | null;
-  salt: number;
-}
-
-const HEX = /^#?([0-9a-f]{6})$/i;
-
+/**
+ * Reads hash/query parameters, supporting both masked (m) and legacy (u) URLs
+ */
 export function readHash(): ShareState {
-  const out: ShareState = { url: null, season: null, leaf: null, ground: null, salt: 0 };
-  try {
-    const raw = window.location.hash.replace(/^#/, "");
-    if (!raw) return out;
-    const p = new URLSearchParams(raw);
-    const u = p.get("u");
-    if (u) out.url = u;
-    const s = p.get("s");
-    if (s !== null && !Number.isNaN(Number(s))) out.season = Number(s);
-    const lf = p.get("lf");
-    if (lf && HEX.test(lf)) out.leaf = `#${lf.replace("#", "").toLowerCase()}`;
-    const gd = p.get("gd");
-    if (gd && HEX.test(gd)) out.ground = `#${gd.replace("#", "").toLowerCase()}`;
-    const r = p.get("r");
-    if (r !== null && !Number.isNaN(Number(r))) out.salt = Number(r);
-  } catch {
-    /* ignore malformed hashes */
-  }
-  return out;
+  if (typeof window === "undefined") return { salt: 0 };
+  const rawHash = window.location.hash.replace(/^#/, "");
+  const params = new URLSearchParams(rawHash || window.location.search);
+
+  // Read masked link first, fallback to raw `u` if present
+  const maskedParam = params.get("m");
+  const rawParam = params.get("u");
+  const resolvedUrl = maskedParam ? unmaskUrl(maskedParam) : rawParam ?? undefined;
+
+  const s = params.get("s");
+  const lf = params.get("lf");
+  const gd = params.get("gd");
+  const r = params.get("r");
+  const lbl = params.get("lbl");
+  const bt = params.get("bt");
+  const bc = params.get("bc");
+
+  return {
+    url: resolvedUrl,
+    season: s !== null ? Number(s) : undefined,
+    leaf: lf ? `#${lf}` : null,
+    ground: gd ? `#${gd}` : null,
+    salt: r !== null ? Number(r) : 0,
+    label: lbl ?? undefined,
+    bannerText: bt ?? undefined,
+    bannerColor: bc ? `#${bc}` : undefined,
+  };
 }
 
-export function writeHash(s: ShareState): void {
-  const p = new URLSearchParams();
-  if (s.url) p.set("u", s.url);
-  if (s.season !== null) p.set("s", String(s.season));
-  if (s.leaf) p.set("lf", s.leaf.replace("#", ""));
-  if (s.ground) p.set("gd", s.ground.replace("#", ""));
-  if (s.salt) p.set("r", String(s.salt));
-  window.history.replaceState(null, "", `#${p.toString()}`);
+/**
+ * Writes share parameters to URL hash using the masked parameter `m`
+ */
+export function writeHash(state: ShareState) {
+  if (typeof window === "undefined") return;
+  const params = new URLSearchParams();
+
+  if (state.url) {
+    params.set("m", maskUrl(state.url));
+  }
+  if (state.season !== undefined && state.season !== 0) {
+    params.set("s", String(state.season));
+  }
+  if (state.leaf) {
+    params.set("lf", state.leaf.replace("#", ""));
+  }
+  if (state.ground) {
+    params.set("gd", state.ground.replace("#", ""));
+  }
+  if (state.salt) {
+    params.set("r", String(state.salt));
+  }
+  if (state.label && state.label !== "Editable") {
+    params.set("lbl", state.label);
+  }
+  if (state.bannerText && state.bannerText !== "Bryan R. Cañaveral") {
+    params.set("bt", state.bannerText);
+  }
+  if (state.bannerColor && state.bannerColor !== "#e11d48") {
+    params.set("bc", state.bannerColor.replace("#", ""));
+  }
+
+  const hashStr = params.toString();
+  if (hashStr) {
+    window.history.replaceState(null, "", `#${hashStr}`);
+  } else {
+    window.history.replaceState(null, "", window.location.pathname);
+  }
 }
