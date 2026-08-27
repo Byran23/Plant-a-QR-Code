@@ -80,7 +80,7 @@ function createBalloonEnvelopeGeometry() {
 export default function HotAirBalloon({
   offsetX = 5.0,
   offsetZ = -6.0,
-  alt = 68, // Raised significantly to prevent touching the tree canopy
+  alt = 88, // Raised significantly to prevent touching the tree canopy
 }: {
   offsetX?: number;
   offsetZ?: number;
