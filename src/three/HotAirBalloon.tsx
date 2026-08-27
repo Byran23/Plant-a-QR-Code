@@ -79,8 +79,8 @@ function createBalloonEnvelopeGeometry() {
 
 export default function HotAirBalloon({
   offsetX = 4.5,
-  offsetZ = -3.5,
-  alt = 125, // Set high in the upper sky atmosphere
+  offsetZ = 3.5,
+  alt = 96,
 }: {
   offsetX?: number;
   offsetZ?: number;
@@ -201,34 +201,20 @@ export default function HotAirBalloon({
 
     const p = morph?.p ?? 0;
     const vis = Math.max(0, 1 - smooth01(p));
-    const grow = easeOutBack(clamp01(intro.current / 0.7));
-    const scale = vis * grow;
+    const scale = vis; // Keep scale fully stable (no drop/grow bounce)
 
     const g = groupRef.current;
     if (g) {
-      // Gentle, wide-altitude thermal displacement
-      const verticalFloat =
-        Math.sin(t * 0.25) * 1.8 +
-        Math.sin(t * 0.12 + 1.5) * 1.1 +
-        Math.cos(t * 0.06) * 0.6;
-
-      // Slow high-altitude wind drift
-      const driftX = offsetX + Math.sin(t * 0.08) * 1.2 + Math.cos(t * 0.03) * 0.6;
-      const driftZ = offsetZ + Math.cos(t * 0.02) * 0.2 + Math.sin(t * 0.03) * 0.6;
-      const currentY = alt + verticalFloat;
+      const driftX = offsetX + Math.sin(t * 0.05) * 0.15;
+      const driftZ = offsetZ + Math.cos(t * 0.04) * 0.15;
+      const currentY = alt; // Completely fixed height
 
       g.position.set(driftX, currentY, driftZ);
-      g.rotation.set(
-        Math.sin(t * 0.18) * 0.02,
-        t * 0.012,
-        Math.cos(t * 0.10) * 0.02,
-      );
-      // Scaled up slightly for clarity at high altitudes
+      g.rotation.set(0, t * 0.012, 0);
       g.scale.setScalar(Math.max(0.0001, 1.35 * scale));
       g.visible = scale > 0.02;
     }
 
-    // Burner flame expansion matching thermal lift cycles
     const liftPulse = Math.max(0, Math.cos(t * 0.25));
     const flicker = Math.sin(t * 14) * 0.25 + Math.cos(t * 22) * 0.1;
 
