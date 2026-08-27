@@ -31,12 +31,12 @@ function createBalloonTexture() {
       ctx.fillStyle = stripes[i];
       ctx.fillRect(i * stripeW, 0, stripeW, canvas.height);
 
-      // Shadowed vertical seams for 3D depth
+      // Shadowed vertical seams
       ctx.fillStyle = "rgba(0, 0, 0, 0.12)";
       ctx.fillRect(i * stripeW, 0, 4, canvas.height);
       ctx.fillRect((i + 1) * stripeW - 4, 0, 4, canvas.height);
 
-      // Horizontal decorative starburst accent bands
+      // Horizontal starburst accent bands
       ctx.fillStyle = "rgba(255, 255, 255, 0.22)";
       ctx.fillRect(i * stripeW, canvas.height * 0.38, stripeW, 24);
       ctx.fillRect(i * stripeW, canvas.height * 0.44, stripeW, 14);
@@ -50,13 +50,13 @@ function createBalloonTexture() {
   return tex;
 }
 
-// Authentic aerodynamic teardrop profile via LatheGeometry
+// Generates an authentic hot air balloon teardrop profile via LatheGeometry
 function createBalloonEnvelopeGeometry() {
   const points: THREE.Vector2[] = [];
   const segments = 40;
 
   for (let i = 0; i <= segments; i++) {
-    const t = i / segments; // 0 (throat) to 1 (crown)
+    const t = i / segments;
     const y = -1.6 + t * 4.4;
 
     let radius = 0;
@@ -78,9 +78,9 @@ function createBalloonEnvelopeGeometry() {
 }
 
 export default function HotAirBalloon({
-  offsetX = 1.5,
-  offsetZ = -2.2,
-  alt = 26.5, // Lifted higher above the tree canopy
+  offsetX = 2.2,
+  offsetZ = -3.5,
+  alt = 32, // Positioned much higher into the sky
 }: {
   offsetX?: number;
   offsetZ?: number;
@@ -206,36 +206,41 @@ export default function HotAirBalloon({
 
     const g = groupRef.current;
     if (g) {
-      // Compound multi-frequency sinusoids for random, non-repeating slow vertical draft
+      // Compound multi-frequency sinusoids for random, natural slow vertical lift & descent
       const verticalFloat =
-        Math.sin(t * 0.42) * 0.75 +
-        Math.sin(t * 0.19 + 1.2) * 0.45 +
-        Math.cos(t * 0.07 + 2.5) * 0.35;
+        Math.sin(t * 0.22) * 1.8 +
+        Math.sin(t * 0.47 + 1.2) * 0.9 +
+        Math.cos(t * 0.11 + 0.5) * 1.2;
 
       // Gentle horizontal air currents
-      const driftX = offsetX + Math.sin(t * 0.14) * 0.4 + Math.cos(t * 0.06) * 0.2;
-      const driftZ = offsetZ + Math.cos(t * 0.11) * 0.4 + Math.sin(t * 0.05) * 0.2;
-      const driftY = alt + verticalFloat;
+      const driftX = offsetX + Math.sin(t * 0.08) * 0.8 + Math.cos(t * 0.19) * 0.3;
+      const driftZ = offsetZ + Math.cos(t * 0.07) * 0.8 + Math.sin(t * 0.16) * 0.3;
+      const currentY = alt + verticalFloat;
 
-      g.position.set(driftX, driftY, driftZ);
+      g.position.set(driftX, currentY, driftZ);
 
-      // Subtle aerodynamic sway
+      // Micro thermal yaw and roll
       g.rotation.set(
-        Math.sin(t * 0.22) * 0.025 + Math.cos(t * 0.11) * 0.015,
-        t * 0.015,
-        Math.cos(t * 0.18) * 0.025 + Math.sin(t * 0.09) * 0.015,
+        Math.sin(t * 0.18) * 0.02,
+        Math.sin(t * 0.06) * 0.12,
+        Math.cos(t * 0.14) * 0.02,
       );
-      g.scale.setScalar(Math.max(0.0001, 1.08 * scale));
+      g.scale.setScalar(Math.max(0.0001, 1.15 * scale));
       g.visible = scale > 0.02;
     }
 
-    // Dynamic burner glow & flame flicker
-    const flicker = Math.sin(t * 14) * 0.3 + Math.cos(t * 22) * 0.15;
+    // Dynamic burner flare corresponding to upward lift cycles
+    const liftBurn = Math.max(0, Math.sin(t * 0.22));
+    const flicker = Math.sin(t * 14) * 0.25 + Math.cos(t * 24) * 0.15;
     if (burnerRef.current) {
-      burnerRef.current.intensity = Math.max(0.4, 1.3 + flicker);
+      burnerRef.current.intensity = Math.max(0.3, 0.8 + liftBurn * 0.9 + flicker);
     }
     if (flameMeshRef.current) {
-      flameMeshRef.current.scale.set(1 + flicker * 0.2, 1 + flicker * 0.4, 1 + flicker * 0.2);
+      flameMeshRef.current.scale.set(
+        1 + flicker * 0.2,
+        1 + liftBurn * 0.6 + flicker * 0.3,
+        1 + flicker * 0.2,
+      );
     }
   });
 
@@ -249,7 +254,7 @@ export default function HotAirBalloon({
         castShadow
       />
 
-      {/* Throat Collar Ring */}
+      {/* Reinforced Throat Collar Ring */}
       <mesh
         geometry={collarGeo}
         material={cableMat}
@@ -269,7 +274,7 @@ export default function HotAirBalloon({
         <pointLight
           ref={burnerRef}
           color="#ff7900"
-          distance={4.5}
+          distance={5.5}
           decay={2}
           intensity={1.4}
         />
