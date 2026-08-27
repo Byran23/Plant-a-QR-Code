@@ -1,5 +1,4 @@
 import QRCode from "qrcode";
-import LZString from "lz-string";
 
 export interface QRGrid {
   text: string;
@@ -20,10 +19,10 @@ export interface ShareState {
   rain?: boolean;
 }
 
-const SEP = "\x1f"; // Unit separator for smallest overhead
+const SEP = "\x1f"; // Standard Unit Separator (1 byte)
 
 /**
- * Compresses the entire configuration state into a tiny URL-safe string
+ * Zero-dependency compact URL-safe state packer
  */
 export function packState(state: ShareState): string {
   let url = (state.url || "").trim();
@@ -57,8 +56,14 @@ export function packState(state: ShareState): string {
   }
 
   const raw = items.join(SEP);
-  // High-ratio URI-safe LZ compression
-  return LZString.compressToEncodedURIComponent(raw);
+  try {
+    return btoa(encodeURIComponent(raw))
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=+$/, "");
+  } catch {
+    return encodeURIComponent(raw);
+  }
 }
 
 /**
@@ -67,10 +72,11 @@ export function packState(state: ShareState): string {
 export function unpackState(packed: string): Partial<ShareState> {
   if (!packed) return {};
   try {
-    const raw = LZString.decompressFromEncodedURIComponent(packed);
-    if (!raw) return {};
-
+    let base64 = packed.replace(/-/g, "+").replace(/_/g, "/");
+    while (base64.length % 4) base64 += "=";
+    const raw = decodeURIComponent(atob(base64));
     const parts = raw.split(SEP);
+
     const flags = parts[0] || "000";
     const proto = parseInt(flags[0] || "0", 10);
     const season = parseInt(flags[1] || "0", 10);
@@ -93,6 +99,17 @@ export function unpackState(packed: string): Partial<ShareState> {
     return { url, season, rain, bannerText, label, leaf, ground, bannerColor, salt };
   } catch {
     return {};
+  }
+}
+
+export async function resolveShortSlug(slug: string): Promise<Partial<ShareState> | null> {
+  try {
+    const res = await fetch(`/api/resolve?s=${encodeURIComponent(slug)}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return unpackState(data.payload);
+  } catch {
+    return null;
   }
 }
 
