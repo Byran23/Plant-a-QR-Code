@@ -18,11 +18,10 @@ export interface ShareState {
   bannerColor?: string;
 }
 
-const SEP = "\x1e"; // Record separator for minimum byte overhead
+const SEP = "\x1e"; // Record separator to keep overhead to 1 byte
 
 /**
- * Packs all state variables into a single URL-safe string.
- * Structure: [flags, url, bannerText, label, leafHex, groundHex, bannerColorHex, salt]
+ * Packs configuration into the smallest possible Base64 string for copying
  */
 export function packState(state: ShareState): string {
   let url = (state.url || "").trim();
@@ -47,7 +46,7 @@ export function packState(state: ShareState): string {
   const bc = state.bannerColor && state.bannerColor.toLowerCase() !== "#e11d48" ? state.bannerColor.replace("#", "") : "";
   const r = state.salt ? state.salt.toString(36) : "";
 
-  // Combine into a compact array, trimming empty trailing elements
+  // Combine items and trim unused empty trailing elements
   const items = [`${proto}${s}`, url, bt, lbl, lf, gd, bc, r];
   while (items.length > 2 && items[items.length - 1] === "") {
     items.pop();
@@ -151,25 +150,15 @@ export function readHash(): ShareState {
     };
   }
 
-  // Fallback for legacy parameters
-  const rawParam = params.get("u");
-  const s = params.get("s");
-  const lf = params.get("lf");
-  const gd = params.get("gd");
-  const r = params.get("r");
-  const bt = params.get("bt");
-  const bc = params.get("bc");
-  const lbl = params.get("lbl");
-
   return {
-    url: rawParam ?? undefined,
-    season: s !== null ? Number(s) : undefined,
-    leaf: lf ? `#${lf}` : null,
-    ground: gd ? `#${gd}` : null,
-    salt: r !== null ? Number(r) : 0,
-    label: lbl ?? undefined,
-    bannerText: bt ?? undefined,
-    bannerColor: bc ? `#${bc}` : undefined,
+    url: params.get("u") ?? undefined,
+    season: params.get("s") !== null ? Number(params.get("s")) : undefined,
+    leaf: params.get("lf") ? `#${params.get("lf")}` : null,
+    ground: params.get("gd") ? `#${params.get("gd")}` : null,
+    salt: params.get("r") !== null ? Number(params.get("r")) : 0,
+    label: params.get("lbl") ?? undefined,
+    bannerText: params.get("bt") ?? undefined,
+    bannerColor: params.get("bc") ? `#${params.get("bc")}` : undefined,
   };
 }
 

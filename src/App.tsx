@@ -97,7 +97,7 @@ export default function App() {
   }, [committed, season, leaf, groundColor, salt, isMinimalView, customThemeLabel, bannerText, bannerColor]);
 
   const onCopy = useCallback(() => {
-    // Generates the single shortest #z= hash payload
+    // Generates the single minimal #z= hash payload
     const packed = packState({
       url: committed,
       season,
@@ -115,12 +115,12 @@ export default function App() {
       setCopied(true);
       window.clearTimeout(copyTimer.current);
       copyTimer.current = window.setTimeout(() => setCopied(false), 1800);
-      notify("Shortest share link copied");
+      notify("Shortened link copied");
     };
 
     if (navigator.clipboard?.writeText) {
       navigator.clipboard.writeText(shareUrl).then(done).catch(() => {
-        notify("Copy was blocked — grab the URL from address bar");
+        notify("Copy blocked — grab URL from address bar");
       });
     } else {
       notify("Copy not available — grab URL from address bar");
@@ -171,7 +171,7 @@ export default function App() {
 
   return (
     <div className="relative h-full w-full overflow-hidden font-sans text-stone-900 select-none">
-      {/* Seasonal Wallpaper Backdrop */}
+      {/* Dynamic Seasonal Wallpaper Backdrop */}
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
         <AnimatePresence>
           <motion.div
