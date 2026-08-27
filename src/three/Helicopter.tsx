@@ -3,107 +3,103 @@ import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { morph, smooth01, clamp01, easeOutBack } from "./shared";
 
-function createBannerTextures(text: string, primaryColor: string = "#e11d48") {
-  const canvasFront = document.createElement("canvas");
-  const canvasBack = document.createElement("canvas");
-  canvasFront.width = 2800; // Ultra-wide canvas for a long ribbon
-  canvasFront.height = 420;
-  canvasBack.width = 2800;
-  canvasBack.height = 420;
+function createBannerSideTexture(text: string, primaryColor: string = "#e11d48", isBack: boolean = false) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 2400;
+  canvas.height = 360;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return new THREE.CanvasTexture(canvas);
 
-  const renderSide = (canvas: HTMLCanvasElement, isBack: boolean) => {
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+  // Subtle swallowtail notch at the trailing edge
+  ctx.save();
+  ctx.beginPath();
+  if (!isBack) {
+    // Front Face: Leading edge on Left (0), Swallowtail on Right (2400)
+    ctx.moveTo(0, 0);
+    ctx.lineTo(2400, 0);
+    ctx.lineTo(2260, 180); // Compact 140px notch
+    ctx.lineTo(2400, 360);
+    ctx.lineTo(0, 360);
+  } else {
+    // Back Face: Leading edge on Right (2400), Swallowtail on Left (0)
+    ctx.moveTo(2400, 0);
+    ctx.lineTo(0, 0);
+    ctx.lineTo(140, 180); // Compact 140px notch
+    ctx.lineTo(0, 360);
+    ctx.lineTo(2400, 360);
+  }
+  ctx.closePath();
+  ctx.clip();
 
-    // Streamlined Swallowtail Pennant shape (thinner & longer)
-    ctx.save();
-    ctx.beginPath();
-    ctx.moveTo(0, 0);                 // Leading top corner
-    ctx.lineTo(2800, 0);              // Trailing top tail tip
-    ctx.lineTo(2480, 210);            // Trailing inner V-notch indent
-    ctx.lineTo(2800, 420);            // Trailing bottom tail tip
-    ctx.lineTo(0, 420);               // Leading bottom corner
-    ctx.closePath();
-    ctx.clip();
+  // Background
+  const bgGrad = ctx.createLinearGradient(0, 0, 2400, 0);
+  bgGrad.addColorStop(0, "#ffffff");
+  bgGrad.addColorStop(0.5, "#fffdfa");
+  bgGrad.addColorStop(1, "#fff1f2");
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(0, 0, 2400, 360);
 
-    // Canvas background fill
-    const bgGrad = ctx.createLinearGradient(0, 0, 2800, 0);
-    bgGrad.addColorStop(0, "#ffffff");
-    bgGrad.addColorStop(0.65, "#fffdfa");
-    bgGrad.addColorStop(1, "#fff1f2");
-    ctx.fillStyle = bgGrad;
-    ctx.fill();
+  // Top / Bottom borders
+  ctx.fillStyle = primaryColor;
+  ctx.fillRect(0, 0, 2400, 18);
+  ctx.fillRect(0, 342, 2400, 18);
 
-    // Thin ribbon border stripes
-    ctx.fillStyle = primaryColor;
-    ctx.fillRect(0, 0, 2800, 22);
-    ctx.fillRect(0, 398, 2800, 22);
+  ctx.fillStyle = "#f59e0b"; // Gold Trim
+  ctx.fillRect(0, 18, 2400, 8);
+  ctx.fillRect(0, 334, 2400, 8);
 
-    ctx.fillStyle = "#f59e0b"; // Gold Trim
-    ctx.fillRect(0, 22, 2800, 10);
-    ctx.fillRect(0, 388, 2800, 10);
+  // Leading edge grommet strip
+  ctx.fillStyle = primaryColor;
+  if (!isBack) {
+    ctx.fillRect(0, 0, 20, 360);
+  } else {
+    ctx.fillRect(2380, 0, 20, 360);
+  }
 
-    // Reinforced leading edge grommet hem
-    ctx.fillStyle = primaryColor;
-    ctx.fillRect(0, 0, 26, 420);
+  // Text rendered left-to-right on both faces (never reversed/flipped)
+  ctx.font = "900 128px 'Roboto', sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
 
-    if (isBack) {
-      ctx.translate(2800, 0);
-      ctx.scale(-1, 1);
-    }
+  const centerX = !isBack ? 1140 : 1260;
 
-    // Centered, sleek typography
-    ctx.font = "900 138px 'Roboto', sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
+  // Drop shadow
+  ctx.fillStyle = "rgba(0, 0, 0, 0.12)";
+  ctx.fillText(text, centerX + 3, 183);
 
-    // Text drop shadow
-    ctx.fillStyle = "rgba(0, 0, 0, 0.12)";
-    ctx.fillText(text, 1260, 213);
+  // Text Fill
+  ctx.fillStyle = primaryColor;
+  ctx.fillText(text, centerX, 180);
 
-    // Text fill
-    ctx.fillStyle = primaryColor;
-    ctx.fillText(text, 1256, 210);
+  ctx.restore();
 
-    ctx.restore();
-  };
-
-  renderSide(canvasFront, false);
-  renderSide(canvasBack, true);
-
-  const texFront = new THREE.CanvasTexture(canvasFront);
-  texFront.minFilter = THREE.LinearFilter;
-  texFront.magFilter = THREE.LinearFilter;
-  texFront.generateMipmaps = false;
-  texFront.needsUpdate = true;
-
-  const texBack = new THREE.CanvasTexture(canvasBack);
-  texBack.minFilter = THREE.LinearFilter;
-  texBack.magFilter = THREE.LinearFilter;
-  texBack.generateMipmaps = false;
-  texBack.needsUpdate = true;
-
-  return { texFront, texBack };
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.generateMipmaps = false;
+  tex.needsUpdate = true;
+  return tex;
 }
 
-// Generates an elongated, thinner swallowtail pennant geometry (width = 16.5, height = 1.95)
-function createStreamlinedPennantGeometry(width = 16.5, height = 1.95, segX = 54, segY = 8) {
+// Compact swallowtail geometry
+function createBannerMeshGeometry(width = 15.0, height = 1.75, segX = 48, segY = 6) {
   const geo = new THREE.PlaneGeometry(width, height, segX, segY);
   const pos = geo.attributes.position;
   const halfW = width / 2;
   const halfH = height / 2;
-  const notchDepth = width * 0.12;
+  const notchDepth = width * 0.055; // Subtle, realistic notch depth
 
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i);
     const y = pos.getY(i);
+    // u = 0 at leading edge, 1 at tail
     const u = (x + halfW) / width;
 
-    if (u > 0.82) {
-      const tailFraction = (u - 0.82) / 0.18;
+    if (u > 0.88) {
+      const tailFraction = (u - 0.88) / 0.12;
       const distFromCenterY = 1 - Math.abs(y) / halfH;
-      const notchIndent = tailFraction * distFromCenterY * notchDepth;
-      pos.setX(i, x - notchIndent);
+      const indent = tailFraction * distFromCenterY * notchDepth;
+      pos.setX(i, x - indent);
     }
   }
 
@@ -126,8 +122,7 @@ export default function Helicopter({
   const mainRotorRef = useRef<THREE.Group>(null);
   const mainRotorBlurRef = useRef<THREE.Mesh>(null);
   const tailRotorRef = useRef<THREE.Group>(null);
-  const frontBannerMeshRef = useRef<THREE.Mesh>(null);
-  const backBannerMeshRef = useRef<THREE.Mesh>(null);
+  const bannerMeshRef = useRef<THREE.Mesh>(null);
   const strobeLightRef = useRef<THREE.PointLight>(null);
   const intro = useRef(0);
 
@@ -136,10 +131,15 @@ export default function Helicopter({
   const sphereGeo = useMemo(() => new THREE.SphereGeometry(1, 18, 18), []);
   const cylinderGeo = useMemo(() => new THREE.CylinderGeometry(1, 1, 1, 16), []);
   const discGeo = useMemo(() => new THREE.CircleGeometry(2.3, 24), []);
-  const bannerGeo = useMemo(() => createStreamlinedPennantGeometry(16.5, 1.95, 54, 8), []);
+  const bannerGeo = useMemo(() => createBannerMeshGeometry(15.0, 1.75, 48, 6), []);
 
-  const { texFront, texBack } = useMemo(
-    () => createBannerTextures(bannerText || "Bryan R. Cañaveral", bannerColor || "#e11d48"),
+  // Textures
+  const texFront = useMemo(
+    () => createBannerSideTexture(bannerText || "Bryan R. Cañaveral", bannerColor || "#e11d48", false),
+    [bannerText, bannerColor],
+  );
+  const texBack = useMemo(
+    () => createBannerSideTexture(bannerText || "Bryan R. Cañaveral", bannerColor || "#e11d48", true),
     [bannerText, bannerColor],
   );
 
@@ -283,6 +283,7 @@ export default function Helicopter({
     const grow = easeOutBack(clamp01(intro.current / 0.7));
     const scale = vis * grow;
 
+    // Helicopter Orbit
     const heli = heliGroup.current;
     if (heli) {
       const flightSpeed = 0.38;
@@ -304,6 +305,7 @@ export default function Helicopter({
         tangent,
       );
 
+      // Controlled bank angle
       const bankEuler = new THREE.Euler(0.08, 0, 0.16, "ZYX");
       quat.multiply(new THREE.Quaternion().setFromEuler(bankEuler));
 
@@ -312,6 +314,7 @@ export default function Helicopter({
       heli.visible = scale > 0.02;
     }
 
+    // Rotor mechanics
     if (mainRotorRef.current) mainRotorRef.current.rotation.y += dt * 44;
     if (mainRotorBlurRef.current) mainRotorBlurRef.current.rotation.z += dt * 25;
     if (tailRotorRef.current) tailRotorRef.current.rotation.x += dt * 48;
@@ -320,11 +323,11 @@ export default function Helicopter({
       strobeLightRef.current.intensity = Math.sin(t * 12) > 0.75 ? 2.5 : 0;
     }
 
-    // Extended ripple wave dynamics across the elongated banner
+    // Natural banner aerodynamic wave: 0 at the leading bar, smooth ripple toward the tail
     const posAttr = bannerGeo.attributes.position;
     for (let i = 0; i < posAttr.count; i++) {
-      const u = (posAttr.getX(i) + 8.25) / 16.5;
-      const wave = Math.sin(t * 6.5 - u * 5.4) * (0.01 + Math.pow(Math.max(0, u), 1.35) * 0.32);
+      const u = (posAttr.getX(i) + 7.5) / 15.0; // 0 (lead) to 1 (tail)
+      const wave = Math.sin(t * 6.8 - u * 5.2) * (Math.pow(Math.max(0, u), 1.6) * 0.28);
       posAttr.setZ(i, wave);
     }
     posAttr.needsUpdate = true;
@@ -447,7 +450,7 @@ export default function Helicopter({
         <mesh geometry={sphereGeo} material={navGreenMat} position={[0.58, 0.06, 0.9]} scale={[0.045, 0.045, 0.045]} />
       </group>
 
-      {/* Tow Rigging & Streamlined Banner */}
+      {/* Tow Rigging & Direct-Readable Banner */}
       <group position={[0, -0.25, -2.2]}>
         {/* Main Tow Line */}
         <mesh
@@ -479,13 +482,13 @@ export default function Helicopter({
           geometry={cylinderGeo}
           material={metalMat}
           position={[0, -0.7, -2.8]}
-          scale={[0.035, 2.1, 0.035]}
+          scale={[0.035, 1.9, 0.035]}
         />
 
-        {/* Thinner & Longer Pennant Banner */}
-        <group position={[0, -0.7, -11.05]} rotation={[0, Math.PI / 2, 0]}>
-          <mesh ref={frontBannerMeshRef} geometry={bannerGeo} material={bannerFrontMat} />
-          <mesh ref={backBannerMeshRef} geometry={bannerGeo} material={bannerBackMat} />
+        {/* Banner with Independent Front/Back Faces */}
+        <group position={[0, -0.7, -10.3]} rotation={[0, Math.PI / 2, 0]}>
+          <mesh ref={bannerMeshRef} geometry={bannerGeo} material={bannerFrontMat} />
+          <mesh geometry={bannerGeo} material={bannerBackMat} />
         </group>
       </group>
     </group>
