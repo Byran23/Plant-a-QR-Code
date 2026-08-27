@@ -18,6 +18,7 @@ interface Tile {
 const tmp = new THREE.Object3D();
 const col = new THREE.Color();
 
+// Stone patio tints for 3D ground mode
 const STONE_PATIO_COLORS = [
   "#ede7de",
   "#e3ddd2",
@@ -26,6 +27,7 @@ const STONE_PATIO_COLORS = [
   "#ede6db",
 ];
 
+// Fallback outer grass module colors
 const GARDEN_GREEN_MODULES = [
   "#529134",
   "#46822b",
@@ -45,128 +47,126 @@ export default function Ground({
   const count = total * total;
   const half = (total - 1) / 2;
 
+  // Normalized Season: 0 = Sakura/Spring, 1 = Summer, 2 = Autumn, 3 = Winter
   const seasonMap: Record<string, number> = {
     spring: 0,
     summer: 1,
     autumn: 2,
     winter: 3,
   };
-  const seasonIndex = seasonMap[palette.baseId] ?? 0;
-  const isWinter = seasonIndex === 3;
+  const seasonIdx = seasonMap[palette.baseId] ?? 0;
+  const isWinter = seasonIdx === 3;
 
-  // Base Geometries
+  // Geometries
   const geo = useMemo(() => new THREE.BoxGeometry(1, 1, 1), []);
-  const roofGeo = useMemo(() => new THREE.ConeGeometry(1.6, 1.1, 4), []);
   const sphereGeo = useMemo(() => new THREE.SphereGeometry(1, 12, 12), []);
-  const cylinderGeo = useMemo(() => new THREE.CylinderGeometry(1, 1, 1, 8), []);
+  const cylinderGeo = useMemo(() => new THREE.CylinderGeometry(1, 1, 1, 12), []);
+  const roofGeo = useMemo(() => new THREE.ConeGeometry(1, 1, 4), []);
 
-  // Standard Ground Material
+  // Base Materials
   const mat = useMemo(
     () => new THREE.MeshStandardMaterial({ roughness: 0.88, metalness: 0 }),
     [],
   );
 
-  // Seasonal Doghouse Palette
-  const houseRoofColor = useMemo(() => {
-    switch (seasonIndex) {
-      case 0: // Spring / Sakura
-        return "#fb7185";
-      case 1: // Summer
-        return "#0284c7";
-      case 2: // Autumn
-        return "#d97706";
-      case 3: // Winter
+  // Doghouse Seasonal Palette
+  const houseColors = useMemo(() => {
+    switch (seasonIdx) {
+      case 0: // Spring / Sakura: Warm cedar wood with pastel rose roof
+        return { walls: "#d4a373", roof: "#f472b6", trim: "#fae1dd", bowl: "#fb7185", snowCap: false };
+      case 1: // Summer: Vibrant cottage wood with terracotta roof
+        return { walls: "#b45309", roof: "#ea580c", trim: "#fef3c7", bowl: "#0ea5e9", snowCap: false };
+      case 2: // Autumn: Rich oak walls with pumpkin amber roof
+        return { walls: "#78350f", roof: "#c2410c", trim: "#fed7aa", bowl: "#eab308", snowCap: false };
+      case 3: // Winter: Frosted timber walls with snow-capped roof
       default:
-        return "#f1f5f9";
+        return { walls: "#475569", roof: "#1e293b", trim: "#94a3b8", bowl: "#38bdf8", snowCap: true };
     }
-  }, [seasonIndex]);
+  }, [seasonIdx]);
 
-  const houseWallColor = useMemo(() => {
-    return isWinter ? "#cbd5e1" : "#854d0e";
-  }, [isWinter]);
-
-  // House Materials
-  const roofMat = useMemo(
-    () => new THREE.MeshStandardMaterial({ color: houseRoofColor, roughness: 0.6 }),
-    [houseRoofColor],
+  const houseWallMat = useMemo(
+    () => new THREE.MeshStandardMaterial({ color: houseColors.walls, roughness: 0.8 }),
+    [houseColors.walls],
   );
-  const wallMat = useMemo(
-    () => new THREE.MeshStandardMaterial({ color: houseWallColor, roughness: 0.8 }),
-    [houseWallColor],
+  const houseRoofMat = useMemo(
+    () => new THREE.MeshStandardMaterial({ color: houseColors.roof, roughness: 0.6 }),
+    [houseColors.roof],
   );
-  const doorMat = useMemo(
-    () => new THREE.MeshStandardMaterial({ color: "#1c1917", roughness: 0.95 }),
+  const houseDoorMat = useMemo(
+    () => new THREE.MeshBasicMaterial({ color: "#0f172a" }),
     [],
   );
   const snowCapMat = useMemo(
-    () => new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.5 }),
+    () => new THREE.MeshStandardMaterial({ color: "#f8fafc", roughness: 0.9 }),
     [],
   );
-
-  // Dogs & Ball Materials
   const dogGoldMat = useMemo(
-    () => new THREE.MeshStandardMaterial({ color: "#eab308", roughness: 0.7 }),
+    () => new THREE.MeshStandardMaterial({ color: "#d97706", roughness: 0.75 }),
     [],
   );
   const dogDarkMat = useMemo(
-    () => new THREE.MeshStandardMaterial({ color: "#78350f", roughness: 0.7 }),
+    () => new THREE.MeshStandardMaterial({ color: "#451a03", roughness: 0.75 }),
     [],
   );
-  const earMat = useMemo(
-    () => new THREE.MeshStandardMaterial({ color: "#451a03", roughness: 0.7 }),
+  const dogSnoutMat = useMemo(
+    () => new THREE.MeshStandardMaterial({ color: "#fed7aa", roughness: 0.6 }),
     [],
   );
-  const noseMat = useMemo(
-    () => new THREE.MeshBasicMaterial({ color: "#000000" }),
+  const dogNoseMat = useMemo(
+    () => new THREE.MeshBasicMaterial({ color: "#18181b" }),
     [],
   );
-  const redBallMat = useMemo(
-    () => new THREE.MeshStandardMaterial({ color: "#ef4444", roughness: 0.4 }),
+  const bowlMat = useMemo(
+    () => new THREE.MeshStandardMaterial({ color: houseColors.bowl, roughness: 0.4 }),
+    [houseColors.bowl],
+  );
+  const boneMat = useMemo(
+    () => new THREE.MeshStandardMaterial({ color: "#fef3c7", roughness: 0.6 }),
     [],
   );
 
   useEffect(() => {
     return () => {
       geo.dispose();
-      roofGeo.dispose();
       sphereGeo.dispose();
       cylinderGeo.dispose();
+      roofGeo.dispose();
       mat.dispose();
-      roofMat.dispose();
-      wallMat.dispose();
-      doorMat.dispose();
+      houseWallMat.dispose();
+      houseRoofMat.dispose();
+      houseDoorMat.dispose();
       snowCapMat.dispose();
       dogGoldMat.dispose();
       dogDarkMat.dispose();
-      earMat.dispose();
-      noseMat.dispose();
-      redBallMat.dispose();
+      dogSnoutMat.dispose();
+      dogNoseMat.dispose();
+      bowlMat.dispose();
+      boneMat.dispose();
     };
   }, [
     geo,
-    roofGeo,
     sphereGeo,
     cylinderGeo,
+    roofGeo,
     mat,
-    roofMat,
-    wallMat,
-    doorMat,
+    houseWallMat,
+    houseRoofMat,
+    houseDoorMat,
     snowCapMat,
     dogGoldMat,
     dogDarkMat,
-    earMat,
-    noseMat,
-    redBallMat,
+    dogSnoutMat,
+    dogNoseMat,
+    bowlMat,
+    boneMat,
   ]);
 
   const mesh = useRef<THREE.InstancedMesh>(null);
+  const sceneElementsRef = useRef<THREE.Group>(null);
   const dog1Ref = useRef<THREE.Group>(null);
   const dog2Ref = useRef<THREE.Group>(null);
-  const ballRef = useRef<THREE.Mesh>(null);
   const dog1TailRef = useRef<THREE.Mesh>(null);
   const dog2TailRef = useRef<THREE.Mesh>(null);
-  const extraDecorGroupRef = useRef<THREE.Group>(null);
-
   const st = useRef({ intro: 0, lastP: -1, dirty: true });
 
   const tiles = useMemo<Tile[]>(() => {
@@ -223,12 +223,6 @@ export default function Ground({
     st.current.dirty = true;
   }, [tiles]);
 
-  // Corner location on the lawn for the doghouse
-  const housePos = useMemo<[number, number, number]>(() => {
-    const offset = half - 3.2;
-    return [offset, 0.45, -offset];
-  }, [half]);
-
   useFrame((state, rawDt) => {
     const s = st.current;
     const dt = Math.min(rawDt, 0.05);
@@ -238,97 +232,103 @@ export default function Ground({
     const q = smooth01(p);
     const vis = Math.max(0, 1 - q);
     const grow = easeOutBack(clamp01(s.intro / 0.7));
-    const decorScale = vis * grow;
+    const elemScale = vis * grow;
 
-    // Fade out decor when transitioning into flat QR mode
-    if (extraDecorGroupRef.current) {
-      extraDecorGroupRef.current.scale.setScalar(Math.max(0.0001, decorScale));
-      extraDecorGroupRef.current.visible = decorScale > 0.02;
+    // Fade out diorama objects cleanly when morphing into flat QR code
+    if (sceneElementsRef.current) {
+      sceneElementsRef.current.scale.setScalar(Math.max(0.0001, elemScale));
+      sceneElementsRef.current.visible = elemScale > 0.02;
     }
 
-    // Ground instances update
-    if (s.dirty || Math.abs(p - s.lastP) >= 0.0004 || s.intro < 1) {
-      s.dirty = false;
-      s.lastP = p;
-      const m = mesh.current;
-      if (m) {
-        for (let i = 0; i < tiles.length; i++) {
-          const tile = tiles[i];
-          const g = easeOutBack((s.intro * 1.55 - tile.delay) / 0.55);
-          const organic = tile.h * g;
-          const sy = Math.max(0.02, organic * (1 - q) + 0.14 * q);
-          const sxz = clamp01(g * 1.4) * (0.96 * (1 - q) + 1.002 * q);
-
-          tmp.position.set(tile.x, sy / 2, tile.z);
-          tmp.scale.set(sxz, sy, sxz);
-          tmp.rotation.set(0, 0, 0);
-          tmp.updateMatrix();
-          m.setMatrixAt(i, tmp.matrix);
-
-          col.copy(tile.base).lerp(tile.flat, q);
-          m.setColorAt(i, col);
-        }
-        m.instanceMatrix.needsUpdate = true;
-        if (m.instanceColor) m.instanceColor.needsUpdate = true;
-      }
-    }
-
-    // Tail wagging animation
-    if (dog1TailRef.current) {
-      dog1TailRef.current.rotation.y = Math.sin(t * (isWinter ? 4 : 14)) * 0.45;
-    }
-    if (dog2TailRef.current) {
-      dog2TailRef.current.rotation.y = Math.sin(t * (isWinter ? 3 : 16) + 1) * 0.45;
-    }
-
-    const d1 = dog1Ref.current;
-    const d2 = dog2Ref.current;
-    const ball = ballRef.current;
-
+    // --- Dynamic Dogs Behavior ---
     if (isWinter) {
-      // Winter: Cozy inside the doghouse
-      if (d1) {
-        d1.position.set(housePos[0] - 0.22, 0.46, housePos[2] + 0.25);
-        d1.rotation.set(0, 0.25, 0);
+      // Winter Mode: Cozy resting inside / peeking at the doghouse door
+      if (dog1Ref.current) {
+        dog1Ref.current.position.set(1.95, 0.18, 1.95);
+        dog1Ref.current.rotation.set(0, Math.PI * 0.75, 0);
+        dog1Ref.current.scale.setScalar(0.7);
       }
-      if (d2) {
-        d2.position.set(housePos[0] + 0.22, 0.46, housePos[2] + 0.35);
-        d2.rotation.set(0, -0.3, 0);
+      if (dog2Ref.current) {
+        dog2Ref.current.position.set(2.15, 0.16, 2.15);
+        dog2Ref.current.rotation.set(0, Math.PI * 0.65, -0.08);
+        dog2Ref.current.scale.setScalar(0.65);
       }
-      if (ball) ball.visible = false;
     } else {
-      // Spring / Summer / Autumn: Playfully chasing each other and the ball in the yard
-      if (ball) {
-        ball.visible = true;
-        const bAng = t * 1.35;
-        const bRad = 4.2;
-        const bx = housePos[0] - 3.2 + Math.cos(bAng) * bRad;
-        const bz = housePos[2] + 3.2 + Math.sin(bAng) * bRad;
-        ball.position.set(bx, 0.52 + Math.abs(Math.sin(t * 7)) * 0.35, bz);
+      // Spring / Summer / Autumn: Dogs playing, chasing, and jumping near tree base
+      const playSpeed = 1.4;
+      const angle1 = t * playSpeed;
+      const r1 = 1.8 + Math.sin(t * 2.2) * 0.45;
+      const hop1 = Math.abs(Math.sin(t * 5.6)) * 0.16;
+
+      if (dog1Ref.current) {
+        dog1Ref.current.position.set(
+          Math.cos(angle1) * r1 - 0.2,
+          0.18 + hop1,
+          Math.sin(angle1) * r1 + 0.3,
+        );
+        dog1Ref.current.rotation.set(
+          -hop1 * 0.8,
+          -angle1 - Math.PI / 2,
+          Math.sin(t * 6) * 0.1,
+          "YXZ",
+        );
+        dog1Ref.current.scale.setScalar(0.85);
       }
 
-      if (d1) {
-        const d1Ang = t * 1.35 - 0.35;
-        const d1Rad = 4.0;
-        const x1 = housePos[0] - 3.2 + Math.cos(d1Ang) * d1Rad;
-        const z1 = housePos[2] + 3.2 + Math.sin(d1Ang) * d1Rad;
-        d1.position.set(x1, 0.45 + Math.abs(Math.sin(t * 10)) * 0.18, z1);
-        d1.rotation.set(0, -d1Ang - Math.PI / 2, Math.sin(t * 10) * 0.1, "YXZ");
-      }
+      const angle2 = angle1 - 0.85;
+      const r2 = 2.1 + Math.cos(t * 2.2) * 0.35;
+      const hop2 = Math.abs(Math.sin(t * 5.6 - 0.8)) * 0.14;
 
-      if (d2) {
-        const d2Ang = t * 1.35 - 0.85;
-        const d2Rad = 4.4;
-        const x2 = housePos[0] - 3.2 + Math.cos(d2Ang) * d2Rad;
-        const z2 = housePos[2] + 3.2 + Math.sin(d2Ang) * d2Rad;
-        d2.position.set(x2, 0.45 + Math.abs(Math.sin(t * 10 + 1)) * 0.18, z2);
-        d2.rotation.set(0, -d2Ang - Math.PI / 2, Math.sin(t * 10 + 1) * 0.1, "YXZ");
+      if (dog2Ref.current) {
+        dog2Ref.current.position.set(
+          Math.cos(angle2) * r2 - 0.2,
+          0.16 + hop2,
+          Math.sin(angle2) * r2 + 0.3,
+        );
+        dog2Ref.current.rotation.set(
+          -hop2 * 0.8,
+          -angle2 - Math.PI / 2,
+          -Math.sin(t * 6) * 0.1,
+          "YXZ",
+        );
+        dog2Ref.current.scale.setScalar(0.78);
       }
     }
+
+    // Fast Tail Wags
+    if (dog1TailRef.current) dog1TailRef.current.rotation.y = Math.sin(t * 18) * 0.65;
+    if (dog2TailRef.current) dog2TailRef.current.rotation.y = Math.cos(t * 18) * 0.65;
+
+    // Instanced Floor Tiles Transform
+    if (!s.dirty && Math.abs(p - s.lastP) < 0.0004 && s.intro >= 1) return;
+    s.dirty = false;
+    s.lastP = p;
+    const m = mesh.current;
+    if (!m) return;
+
+    for (let i = 0; i < tiles.length; i++) {
+      const tTile = tiles[i];
+      const g = easeOutBack((s.intro * 1.55 - tTile.delay) / 0.55);
+      const organic = tTile.h * g;
+      const sy = Math.max(0.02, organic * (1 - q) + 0.14 * q);
+      const sxz = clamp01(g * 1.4) * (0.96 * (1 - q) + 1.002 * q);
+
+      tmp.position.set(tTile.x, sy / 2, tTile.z);
+      tmp.scale.set(sxz, sy, sxz);
+      tmp.rotation.set(0, 0, 0);
+      tmp.updateMatrix();
+      m.setMatrixAt(i, tmp.matrix);
+
+      col.copy(tTile.base).lerp(tTile.flat, q);
+      m.setColorAt(i, col);
+    }
+    m.instanceMatrix.needsUpdate = true;
+    if (m.instanceColor) m.instanceColor.needsUpdate = true;
   });
 
   return (
     <group>
+      {/* Floor Tiles */}
       <instancedMesh
         key={count}
         ref={mesh}
@@ -338,7 +338,7 @@ export default function Ground({
         receiveShadow
       />
 
-      {/* Diorama base border */}
+      {/* Diorama Base Soil Slab */}
       <mesh
         geometry={geo}
         position={[0, -0.42, 0]}
@@ -348,97 +348,100 @@ export default function Ground({
         <meshStandardMaterial color={palette.soil || "#cfc8bc"} roughness={0.95} />
       </mesh>
 
-      {/* Seasonal Doghouse & Dogs */}
-      <group ref={extraDecorGroupRef}>
-        {/* Doghouse */}
-        <group position={housePos}>
-          {/* Main Cabin Body */}
+      {/* --- Doghouse & Dogs Under Tree Canopy --- */}
+      <group ref={sceneElementsRef}>
+        {/* Seasonal Doghouse near tree trunk */}
+        <group position={[2.2, 0.1, 2.2]} rotation={[0, -Math.PI * 0.75, 0]}>
+          {/* Main Cabin Walls */}
           <mesh
             geometry={geo}
-            material={wallMat}
+            material={houseWallMat}
             position={[0, 0.45, 0]}
-            scale={[1.7, 0.9, 1.7]}
+            scale={[1.1, 0.8, 1.15]}
             castShadow
+            receiveShadow
+          />
+          {/* Archway Entrance */}
+          <mesh
+            geometry={geo}
+            material={houseDoorMat}
+            position={[0, 0.38, 0.58]}
+            scale={[0.46, 0.62, 0.04]}
           />
           {/* Pitched Roof */}
           <mesh
             geometry={roofGeo}
-            material={roofMat}
-            position={[0, 1.25, 0]}
+            material={houseRoofMat}
+            position={[0, 1.06, 0]}
             rotation={[0, Math.PI / 4, 0]}
-            scale={[1.2, 1.0, 1.2]}
+            scale={[1.05, 0.65, 1.05]}
             castShadow
           />
-          {/* Winter Snow Cap on Roof */}
-          {isWinter && (
+          {/* Winter Snow Layer on Roof */}
+          {houseColors.snowCap && (
             <mesh
               geometry={roofGeo}
               material={snowCapMat}
-              position={[0, 1.32, 0]}
+              position={[0, 1.12, 0]}
               rotation={[0, Math.PI / 4, 0]}
-              scale={[1.22, 0.95, 1.22]}
+              scale={[1.08, 0.58, 1.08]}
             />
           )}
-          {/* Front Entrance Portal */}
+          {/* Food Bowl & Chew Bone */}
           <mesh
-            geometry={geo}
-            material={doorMat}
-            position={[0, 0.38, 0.86]}
-            scale={[0.7, 0.72, 0.05]}
+            geometry={cylinderGeo}
+            material={bowlMat}
+            position={[0.75, 0.08, 0.4]}
+            scale={[0.22, 0.12, 0.22]}
           />
-          {/* Porch Plate */}
           <mesh
-            geometry={geo}
-            material={wallMat}
-            position={[0, 0.05, 0.95]}
-            scale={[1.5, 0.1, 0.5]}
+            geometry={cylinderGeo}
+            material={boneMat}
+            position={[0.72, 0.06, -0.2]}
+            rotation={[0, 0.6, Math.PI / 2]}
+            scale={[0.04, 0.28, 0.04]}
           />
         </group>
 
-        {/* Dog 1 (Golden Retriever) */}
+        {/* --- Dog 1: Golden Retriever Puppy --- */}
         <group ref={dog1Ref}>
           {/* Body */}
-          <mesh geometry={sphereGeo} material={dogGoldMat} position={[0, 0.16, 0]} scale={[0.24, 0.22, 0.38]} castShadow />
-          {/* Head */}
-          <mesh geometry={sphereGeo} material={dogGoldMat} position={[0, 0.34, 0.22]} scale={[0.18, 0.18, 0.2]} castShadow />
-          {/* Snout */}
-          <mesh geometry={geo} material={dogGoldMat} position={[0, 0.3, 0.34]} scale={[0.11, 0.09, 0.14]} />
-          <mesh geometry={sphereGeo} material={noseMat} position={[0, 0.33, 0.41]} scale={[0.035, 0.035, 0.035]} />
+          <mesh geometry={sphereGeo} material={dogGoldMat} scale={[0.24, 0.22, 0.38]} castShadow />
+          {/* Head & Snout */}
+          <mesh geometry={sphereGeo} material={dogGoldMat} position={[0, 0.18, 0.22]} scale={[0.18, 0.18, 0.18]} />
+          <mesh geometry={sphereGeo} material={dogSnoutMat} position={[0, 0.14, 0.33]} scale={[0.11, 0.09, 0.12]} />
+          <mesh geometry={sphereGeo} material={dogNoseMat} position={[0, 0.17, 0.39]} scale={[0.04, 0.035, 0.04]} />
           {/* Floppy Ears */}
-          <mesh geometry={geo} material={earMat} position={[-0.14, 0.32, 0.2]} rotation={[0, 0, 0.3]} scale={[0.05, 0.15, 0.09]} />
-          <mesh geometry={geo} material={earMat} position={[0.14, 0.32, 0.2]} rotation={[0, 0, -0.3]} scale={[0.05, 0.15, 0.09]} />
-          {/* Legs */}
-          <mesh geometry={cylinderGeo} material={dogGoldMat} position={[-0.12, 0.05, 0.14]} scale={[0.04, 0.18, 0.04]} />
-          <mesh geometry={cylinderGeo} material={dogGoldMat} position={[0.12, 0.05, 0.14]} scale={[0.04, 0.18, 0.04]} />
-          <mesh geometry={cylinderGeo} material={dogGoldMat} position={[-0.12, 0.05, -0.14]} scale={[0.04, 0.18, 0.04]} />
-          <mesh geometry={cylinderGeo} material={dogGoldMat} position={[0.12, 0.05, -0.14]} scale={[0.04, 0.18, 0.04]} />
+          <mesh geometry={geo} material={dogDarkMat} position={[-0.14, 0.16, 0.18]} rotation={[0.2, 0, 0.4]} scale={[0.05, 0.14, 0.08]} />
+          <mesh geometry={geo} material={dogDarkMat} position={[0.14, 0.16, 0.18]} rotation={[0.2, 0, -0.4]} scale={[0.05, 0.14, 0.08]} />
+          {/* Little Legs */}
+          <mesh geometry={cylinderGeo} material={dogGoldMat} position={[-0.11, -0.15, 0.12]} scale={[0.05, 0.22, 0.05]} />
+          <mesh geometry={cylinderGeo} material={dogGoldMat} position={[0.11, -0.15, 0.12]} scale={[0.05, 0.22, 0.05]} />
+          <mesh geometry={cylinderGeo} material={dogGoldMat} position={[-0.11, -0.15, -0.12]} scale={[0.05, 0.22, 0.05]} />
+          <mesh geometry={cylinderGeo} material={dogGoldMat} position={[0.11, -0.15, -0.12]} scale={[0.05, 0.22, 0.05]} />
           {/* Wagging Tail */}
-          <mesh ref={dog1TailRef} geometry={cylinderGeo} material={dogGoldMat} position={[0, 0.22, -0.24]} rotation={[-0.7, 0, 0]} scale={[0.035, 0.22, 0.035]} />
+          <mesh ref={dog1TailRef} geometry={cylinderGeo} material={dogGoldMat} position={[0, 0.08, -0.22]} rotation={[-0.65, 0, 0]} scale={[0.035, 0.22, 0.035]} />
         </group>
 
-        {/* Dog 2 (Playful Brown Pup) */}
+        {/* --- Dog 2: Dark Brown Playful Pup --- */}
         <group ref={dog2Ref}>
           {/* Body */}
-          <mesh geometry={sphereGeo} material={dogDarkMat} position={[0, 0.15, 0]} scale={[0.22, 0.2, 0.35]} castShadow />
-          {/* Head */}
-          <mesh geometry={sphereGeo} material={dogDarkMat} position={[0, 0.32, 0.2]} scale={[0.16, 0.16, 0.18]} castShadow />
-          {/* Snout */}
-          <mesh geometry={geo} material={dogDarkMat} position={[0, 0.28, 0.31]} scale={[0.1, 0.08, 0.12]} />
-          <mesh geometry={sphereGeo} material={noseMat} position={[0, 0.31, 0.37]} scale={[0.03, 0.03, 0.03]} />
-          {/* Pointed Ears */}
-          <mesh geometry={geo} material={earMat} position={[-0.11, 0.42, 0.18]} rotation={[0, 0, -0.2]} scale={[0.04, 0.12, 0.08]} />
-          <mesh geometry={geo} material={earMat} position={[0.11, 0.42, 0.18]} rotation={[0, 0, 0.2]} scale={[0.04, 0.12, 0.08]} />
-          {/* Legs */}
-          <mesh geometry={cylinderGeo} material={dogDarkMat} position={[-0.1, 0.05, 0.12]} scale={[0.038, 0.18, 0.038]} />
-          <mesh geometry={cylinderGeo} material={dogDarkMat} position={[0.1, 0.05, 0.12]} scale={[0.038, 0.18, 0.038]} />
-          <mesh geometry={cylinderGeo} material={dogDarkMat} position={[-0.1, 0.05, -0.12]} scale={[0.038, 0.18, 0.038]} />
-          <mesh geometry={cylinderGeo} material={dogDarkMat} position={[0.1, 0.05, -0.12]} scale={[0.038, 0.18, 0.038]} />
+          <mesh geometry={sphereGeo} material={dogDarkMat} scale={[0.22, 0.2, 0.35]} castShadow />
+          {/* Head & Snout */}
+          <mesh geometry={sphereGeo} material={dogDarkMat} position={[0, 0.16, 0.2]} scale={[0.16, 0.16, 0.16]} />
+          <mesh geometry={sphereGeo} material={dogSnoutMat} position={[0, 0.12, 0.3]} scale={[0.1, 0.08, 0.11]} />
+          <mesh geometry={sphereGeo} material={dogNoseMat} position={[0, 0.15, 0.36]} scale={[0.035, 0.03, 0.035]} />
+          {/* Pointy Ears */}
+          <mesh geometry={roofGeo} material={dogDarkMat} position={[-0.11, 0.24, 0.18]} rotation={[0, 0, 0.3]} scale={[0.07, 0.11, 0.07]} />
+          <mesh geometry={roofGeo} material={dogDarkMat} position={[0.11, 0.24, 0.18]} rotation={[0, 0, -0.3]} scale={[0.07, 0.11, 0.07]} />
+          {/* Little Legs */}
+          <mesh geometry={cylinderGeo} material={dogDarkMat} position={[-0.1, -0.14, 0.11]} scale={[0.045, 0.2, 0.045]} />
+          <mesh geometry={cylinderGeo} material={dogDarkMat} position={[0.1, -0.14, 0.11]} scale={[0.045, 0.2, 0.045]} />
+          <mesh geometry={cylinderGeo} material={dogDarkMat} position={[-0.1, -0.14, -0.11]} scale={[0.045, 0.2, 0.045]} />
+          <mesh geometry={cylinderGeo} material={dogDarkMat} position={[0.1, -0.14, -0.11]} scale={[0.045, 0.2, 0.045]} />
           {/* Wagging Tail */}
-          <mesh ref={dog2TailRef} geometry={cylinderGeo} material={dogDarkMat} position={[0, 0.22, -0.22]} rotation={[-0.65, 0, 0]} scale={[0.03, 0.2, 0.03]} />
+          <mesh ref={dog2TailRef} geometry={cylinderGeo} material={dogDarkMat} position={[0, 0.07, -0.2]} rotation={[-0.65, 0, 0]} scale={[0.03, 0.2, 0.03]} />
         </group>
-
-        {/* Play Toy Ball */}
-        <mesh ref={ballRef} geometry={sphereGeo} material={redBallMat} scale={[0.12, 0.12, 0.12]} castShadow />
       </group>
     </group>
   );
