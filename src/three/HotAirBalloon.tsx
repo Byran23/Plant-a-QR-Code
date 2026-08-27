@@ -206,21 +206,19 @@ export default function HotAirBalloon({
 
     const g = groupRef.current;
     if (g) {
-      // Calm high-altitude suspension (completely locked Y altitude with gentle yaw drift)
-      const driftX = offsetX + Math.sin(t * 0.05) * 0.15;
-      const driftZ = offsetZ + Math.cos(t * 0.04) * 0.15;
-      const currentY = alt; // Fully static height: no vertical dip or bobbing
+      // High-altitude suspension (placed high in the sky, fully locked without dips)
+    const highAltitude = 95; // Adjusted to a much higher altitude layer
 
-      g.position.set(driftX, currentY, driftZ);
-      g.rotation.set(
-        0,          // No pitch tilt
-        t * 0.012,  // Slow atmospheric yaw rotation
-        0           // No roll tilt
-      );
-      // Scaled up slightly for clarity at high altitudes
-      g.scale.setScalar(Math.max(0.0001, 1.35 * scale));
-      g.visible = scale > 0.02;
-    }
+    const driftX = offsetX + Math.sin(t * 0.04) * 0.2;
+    const driftZ = offsetZ + Math.cos(t * 0.03) * 0.2;
+    const currentY = highAltitude;
+
+    g.position.set(driftX, currentY, driftZ);
+    g.rotation.set(0, t * 0.008, 0);
+
+    // Scaled up so it remains sharp and visible high in the sky
+    g.scale.setScalar(Math.max(0.0001, 1.8 * scale));
+    g.visible = scale > 0.02;
 
     // Burner flame expansion matching thermal lift cycles
     const liftPulse = Math.max(0, Math.cos(t * 0.25));
