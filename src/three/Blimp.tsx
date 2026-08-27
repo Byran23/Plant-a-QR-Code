@@ -5,40 +5,34 @@ import { morph, smooth01, clamp01, easeOutBack } from "./shared";
 
 const LOGO_SRC = "https://i.imgur.com/1xINYng.png";
 
-function createClassicAeroBlimpTexture(logoImage: HTMLImageElement | null) {
+// 4-color palette: Navy Blue (#1e3a8a), Crisp White (#ffffff), Warm Amber/Gold (#f59e0b), Crimson Accent (#e11d48)
+function createFourColorBlimpTexture(logoImage: HTMLImageElement | null) {
   const canvas = document.createElement("canvas");
   canvas.width = 2048;
   canvas.height = 1024;
   const ctx = canvas.getContext("2d");
 
   if (ctx) {
-    // 1. Sleek, clean aerodynamic pearl-white & silver gradient hull
-    const bgGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
-    bgGrad.addColorStop(0, "#ffffff");
-    bgGrad.addColorStop(0.35, "#f8fafc");
-    bgGrad.addColorStop(0.7, "#e2e8f0");
-    bgGrad.addColorStop(1, "#cbd5e1");
-    ctx.fillStyle = bgGrad;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    // 1. Navy Blue Upper Dome / Top Half
+    ctx.fillStyle = "#1e3a8a";
+    ctx.fillRect(0, 0, canvas.width, canvas.height * 0.44);
 
-    // Subtle metallic panel seam lines
-    ctx.fillStyle = "rgba(148, 163, 184, 0.25)";
-    for (let y = 120; y < canvas.height; y += 140) {
-      ctx.fillRect(0, y, canvas.width, 2);
-    }
+    // 2. Crisp White Lower Hull
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, canvas.height * 0.44, canvas.width, canvas.height * 0.56);
 
-    // 2. Elegant, minimal navy & gold racing pinstripes
-    ctx.fillStyle = "#1e293b"; // Slate Navy
-    ctx.fillRect(0, canvas.height * 0.48, canvas.width, 28);
+    // 3. Warm Amber/Gold Waist Stripe
+    ctx.fillStyle = "#f59e0b";
+    ctx.fillRect(0, canvas.height * 0.42, canvas.width, 16);
 
-    ctx.fillStyle = "#f59e0b"; // Fine Gold Accent Pin
-    ctx.fillRect(0, canvas.height * 0.47, canvas.width, 6);
-    ctx.fillRect(0, canvas.height * 0.51, canvas.width, 6);
+    // 4. Crimson Red Waist Accent Line
+    ctx.fillStyle = "#e11d48";
+    ctx.fillRect(0, canvas.height * 0.54, canvas.width, 14);
 
-    // 3. Port & Starboard Logo Medallions (sides only)
+    // Side Decals strictly on Port & Starboard (rotated geometry alignment)
     if (logoImage && logoImage.complete && logoImage.naturalWidth > 0) {
       const badgeDiameter = 280;
-      const badgeY = canvas.height * 0.5;
+      const badgeY = canvas.height * 0.48;
 
       const flankCenters = [canvas.width * 0.25, canvas.width * 0.75];
 
@@ -48,22 +42,22 @@ function createClassicAeroBlimpTexture(logoImage: HTMLImageElement | null) {
         ctx.arc(badgeX, badgeY, badgeDiameter / 2, 0, Math.PI * 2);
         ctx.closePath();
 
-        // Crisp white circular medallion
+        // White medallion base
         ctx.fillStyle = "#ffffff";
-        ctx.shadowColor = "rgba(15, 23, 42, 0.25)";
+        ctx.shadowColor = "rgba(0, 0, 0, 0.25)";
         ctx.shadowBlur = 14;
         ctx.fill();
 
-        // Elegant Gold ring trim
-        ctx.lineWidth = 10;
+        // Gold & Crimson border rings
+        ctx.lineWidth = 12;
         ctx.strokeStyle = "#f59e0b";
         ctx.stroke();
 
-        ctx.lineWidth = 3;
-        ctx.strokeStyle = "#1e293b";
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = "#e11d48";
         ctx.stroke();
 
-        // Centered logo
+        // Draw centered logo
         ctx.clip();
         const pad = 22;
         ctx.drawImage(
@@ -110,7 +104,7 @@ export default function Blimp({
     img.onload = () => setLogoImg(img);
   }, []);
 
-  // Geometries: Rotate hull geometry by 90° so UV 0.25 & 0.75 sit strictly on the left/right sides
+  // Rotate hull 90° so UV 0.25 & 0.75 map to side flanks
   const hullGeo = useMemo(() => {
     const geo = new THREE.SphereGeometry(1, 48, 36);
     geo.rotateY(Math.PI / 2);
@@ -123,14 +117,14 @@ export default function Blimp({
   const propGeo = useMemo(() => new THREE.BoxGeometry(0.65, 0.04, 0.06), []);
 
   // Textures & Materials
-  const blimpTex = useMemo(() => createClassicAeroBlimpTexture(logoImg), [logoImg]);
+  const blimpTex = useMemo(() => createFourColorBlimpTexture(logoImg), [logoImg]);
 
   const hullMat = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
         map: blimpTex,
-        roughness: 0.4,
-        metalness: 0.15,
+        roughness: 0.38,
+        metalness: 0.1,
       }),
     [blimpTex],
   );
@@ -138,29 +132,22 @@ export default function Blimp({
   const gondolaMat = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
-        color: "#0f172a", // Midnight Slate
+        color: "#1e3a8a", // Navy Blue
         roughness: 0.35,
-        metalness: 0.7,
+        metalness: 0.5,
       }),
     [],
   );
 
-  const finMat = useMemo(
-    () =>
-      new THREE.MeshStandardMaterial({
-        color: "#1e293b", // Clean Slate Navy
-        roughness: 0.45,
-        metalness: 0.3,
-      }),
-    [],
-  );
+  const finNavyMat = useMemo(() => new THREE.MeshStandardMaterial({ color: "#1e3a8a", roughness: 0.4 }), []);
+  const finCrimsonMat = useMemo(() => new THREE.MeshStandardMaterial({ color: "#e11d48", roughness: 0.4 }), []);
 
   const propMat = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
-        color: "#94a3b8", // Metallic Silver
+        color: "#f59e0b", // Amber/Gold
         roughness: 0.25,
-        metalness: 0.8,
+        metalness: 0.6,
       }),
     [],
   );
@@ -175,10 +162,23 @@ export default function Blimp({
       blimpTex.dispose();
       hullMat.dispose();
       gondolaMat.dispose();
-      finMat.dispose();
+      finNavyMat.dispose();
+      finCrimsonMat.dispose();
       propMat.dispose();
     };
-  }, [hullGeo, gondolaGeo, finGeo, engineGeo, propGeo, blimpTex, hullMat, gondolaMat, finMat, propMat]);
+  }, [
+    hullGeo,
+    gondolaGeo,
+    finGeo,
+    engineGeo,
+    propGeo,
+    blimpTex,
+    hullMat,
+    gondolaMat,
+    finNavyMat,
+    finCrimsonMat,
+    propMat,
+  ]);
 
   useFrame((state, rawDt) => {
     const dt = Math.min(rawDt, 0.05);
@@ -210,13 +210,13 @@ export default function Blimp({
     if (rightPropRef.current) rightPropRef.current.rotation.z += dt * 36;
 
     if (beaconLightRef.current) {
-      beaconLightRef.current.intensity = Math.sin(t * 8) > 0.5 ? 2.2 : 0;
+      beaconLightRef.current.intensity = Math.sin(t * 8) > 0.5 ? 2.5 : 0;
     }
   });
 
   return (
     <group ref={blimpGroup}>
-      {/* Sleek Pearl/Silver Hull with Side Logos */}
+      {/* 4-Color Clean Hull */}
       <mesh
         geometry={hullGeo}
         material={hullMat}
@@ -224,7 +224,7 @@ export default function Blimp({
         castShadow
       />
 
-      {/* Modern Cabin Gondola */}
+      {/* Control Gondola */}
       <mesh
         geometry={gondolaGeo}
         material={gondolaMat}
@@ -232,13 +232,13 @@ export default function Blimp({
         castShadow
       />
 
-      {/* Cohesive Navy Tail Fins */}
-      <mesh geometry={finGeo} material={finMat} position={[0, 1.4, -3.8]} />
-      <mesh geometry={finGeo} material={finMat} position={[0, -1.4, -3.8]} />
-      <mesh geometry={finGeo} material={finMat} position={[1.4, 0, -3.8]} rotation={[0, 0, Math.PI / 2]} />
-      <mesh geometry={finGeo} material={finMat} position={[-1.4, 0, -3.8]} rotation={[0, 0, Math.PI / 2]} />
+      {/* Tail Fins */}
+      <mesh geometry={finGeo} material={finNavyMat} position={[0, 1.4, -3.8]} />
+      <mesh geometry={finGeo} material={finNavyMat} position={[0, -1.4, -3.8]} />
+      <mesh geometry={finGeo} material={finCrimsonMat} position={[1.4, 0, -3.8]} rotation={[0, 0, Math.PI / 2]} />
+      <mesh geometry={finGeo} material={finCrimsonMat} position={[-1.4, 0, -3.8]} rotation={[0, 0, Math.PI / 2]} />
 
-      {/* Gondola Engine Pods & Props */}
+      {/* Engines & Props */}
       <group position={[-0.65, -1.75, 0]}>
         <mesh geometry={engineGeo} material={gondolaMat} rotation={[Math.PI / 2, 0, 0]} />
         <mesh ref={leftPropRef} geometry={propGeo} material={propMat} position={[0, 0, -0.32]} />
@@ -249,8 +249,8 @@ export default function Blimp({
         <mesh ref={rightPropRef} geometry={propGeo} material={propMat} position={[0, 0, -0.32]} />
       </group>
 
-      {/* Flashing Strobe Beacon */}
-      <pointLight ref={beaconLightRef} color="#ef4444" distance={6} decay={2} position={[0, -2.1, 0.2]} />
+      {/* Flashing Beacon */}
+      <pointLight ref={beaconLightRef} color="#e11d48" distance={6} decay={2} position={[0, -2.1, 0.2]} />
     </group>
   );
 }
