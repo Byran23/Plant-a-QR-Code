@@ -206,26 +206,16 @@ export default function HotAirBalloon({
 
     const g = groupRef.current;
     if (g) {
-      // Gentle, wide-altitude thermal displacement
-      const verticalFloat =
-        Math.sin(t * 0.25) * 1.8 +
-        Math.sin(t * 0.12 + 1.5) * 1.1 +
-        Math.cos(t * 0.06) * 0.6;
-
-      // Calm, almost motionless high-altitude suspension
-        const driftX = offsetX + Math.sin(t * 0.05) * 0.15; // Minimal lateral meandering
-        const driftZ = offsetZ + Math.cos(t * 0.04) * 0.15;
-
-        // Strict upward-only "breathing" motion (absolute value ensures no downward dip)
-        const upwardOnlyFloat = Math.abs(Math.sin(t * 0.18)) * 0.35; // Bobs up to +0.35, returns to base 'alt'
-
-        const currentY = alt + upwardOnlyFloat;
+      // Calm high-altitude suspension (completely locked Y altitude with gentle yaw drift)
+      const driftX = offsetX + Math.sin(t * 0.05) * 0.15;
+      const driftZ = offsetZ + Math.cos(t * 0.04) * 0.15;
+      const currentY = alt; // Fully static height: no vertical dip or bobbing
 
       g.position.set(driftX, currentY, driftZ);
       g.rotation.set(
-        Math.sin(t * 0.18) * 0.02,
-        t * 0.012,
-        Math.cos(t * 0.14) * 0.02,
+        0,          // No pitch tilt
+        t * 0.012,  // Slow atmospheric yaw rotation
+        0           // No roll tilt
       );
       // Scaled up slightly for clarity at high altitudes
       g.scale.setScalar(Math.max(0.0001, 1.35 * scale));
