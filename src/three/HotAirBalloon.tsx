@@ -214,7 +214,7 @@ export default function HotAirBalloon({
 
       // Slow high-altitude wind drift
       const driftX = offsetX + Math.sin(t * 0.08) * 1.2 + Math.cos(t * 0.03) * 0.6;
-      const driftZ = offsetZ + Math.cos(t * 0.07) * 1.2 + Math.sin(t * 0.03) * 0.6;
+      const driftZ = offsetZ + Math.cos(t * 0.04) * 1.2 + Math.sin(t * 0.03) * 0.6;
       const currentY = alt + verticalFloat;
 
       g.position.set(driftX, currentY, driftZ);
