@@ -14,7 +14,6 @@ import Rain from "./Rain";
 import Helicopter from "./Helicopter";
 import HotAirBalloon from "./HotAirBalloon";
 import Blimp from "./Blimp";
-import BackgroundLandscape from "./BackgroundLandscape";
 
 const HALF_PI = Math.PI / 2;
 const UP = new THREE.Vector3(0, 1, 0);
@@ -265,10 +264,7 @@ export default function Scene({
           color="#cfe2ff"
         />
 
-        {/* Background Mountain/Hill Diorama */}
-        <BackgroundLandscape total={grid.total} palette={palette} />
-
-        {/* Core Diorama & Tree Layers */}
+        {/* Core Diorama & Tree */}
         <Ground grid={grid} palette={palette} seed={seed} />
         <Covers grid={grid} zone={zone} palette={palette} seed={seed} />
         <Tree seed={seed} palette={palette} grid={grid} zone={zone} />

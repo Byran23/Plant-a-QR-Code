@@ -140,6 +140,7 @@ export default function App() {
 
   return (
     <div className="relative h-full w-full overflow-hidden font-sans text-stone-900 select-none">
+      {/* Dynamic Wallpaper Backdrop */}
       <div className="fixed inset-0 z-0 pointer-events-none">
         <AnimatePresence>
           <motion.div
@@ -154,10 +155,12 @@ export default function App() {
             }}
           />
         </AnimatePresence>
+        
+        {/* Soft Radial Center Lighting */}
         <div
           className="absolute inset-0"
           style={{
-            background: `radial-gradient(55% 42% at 50% 32%, ${palette.glow} 0%, transparent 70%)`,
+            background: `radial-gradient(65% 55% at 50% 36%, ${palette.glow} 0%, transparent 80%)`,
             transition: "background 900ms ease-in-out",
           }}
         />
@@ -166,13 +169,14 @@ export default function App() {
       <Watermark label={palette.label} />
       <Scene grid={activeGrid} palette={palette} seed={seed} qr={qr} rain={rain} onToggle={toggle} />
 
+      {/* Screen Vignette */}
       <div
         className="pointer-events-none fixed inset-0 z-20"
         style={{
           background: "radial-gradient(125% 95% at 50% 38%, transparent 58%, rgba(76,20,35,0.08) 100%)",
         }}
       />
-      <div className="noise pointer-events-none fixed inset-0 z-20 opacity-30" />
+      <div className="noise pointer-events-none fixed inset-0 z-20 opacity-25" />
 
       {isMinimalView ? (
         <div className="pointer-events-none fixed inset-0 z-40 flex flex-col items-center justify-between p-6">
