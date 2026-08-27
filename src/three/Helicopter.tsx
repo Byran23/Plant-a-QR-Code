@@ -3,55 +3,6 @@ import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { morph, smooth01, clamp01, easeOutBack } from "./shared";
 
-// Create custom swallowtail trailing streamer geometry
-function createBannerShapeGeometry(length = 12.0, height = 2.4, segmentsX = 48, segmentsY = 6) {
-  const shape = new THREE.Shape();
-  const halfH = height / 2;
-  const tailNotchDepth = 1.4; // Swallowtail V-cut inward depth
-
-  // 2D Contour: Leading Edge -> Top Rim -> Swallowtail Top Tip -> Inward V-Notch -> Swallowtail Bottom Tip -> Bottom Rim
-  shape.moveTo(0, -halfH * 0.75);
-  shape.lineTo(0, halfH * 0.75);
-  shape.lineTo(length, halfH);
-  shape.lineTo(length - tailNotchDepth, 0);
-  shape.lineTo(length, -halfH);
-  shape.closePath();
-
-  // Create a finely subdivided plane with UVs matching standard 0..1 bounds
-  const geo = new THREE.PlaneGeometry(length, height, segmentsX, segmentsY);
-  const pos = geo.attributes.position;
-  const uv = geo.attributes.uv;
-
-  // Custom vertex repositioning to fit the aerodynamic swallowtail profile
-  for (let i = 0; i < pos.count; i++) {
-    const rawU = (pos.getX(i) + length / 2) / length; // 0 (front) to 1 (tail)
-    const rawV = (pos.getY(i) + halfH) / height;     // 0 (bottom) to 1 (top)
-
-    // Leading edge gentle taper
-    const verticalSpread = THREE.MathUtils.lerp(0.75, 1.0, Math.min(1, rawU * 2.5));
-    const currentHalfH = halfH * verticalSpread;
-    const posY = (rawV - 0.5) * 2 * currentHalfH;
-
-    // Cut inward swallowtail chevron at the back
-    let posX = rawU * length;
-    if (rawU > 0.85) {
-      const uTail = (rawU - 0.85) / 0.15;
-      const vDistFromCenter = Math.abs(rawV - 0.5) * 2; // 0 (center) to 1 (edges)
-      const notchOffset = (1 - vDistFromCenter) * tailNotchDepth * uTail;
-      posX -= notchOffset;
-    }
-
-    pos.setXYZ(i, posX, posY, 0);
-    uv.setXY(i, rawU, rawV);
-  }
-
-  pos.needsUpdate = true;
-  uv.needsUpdate = true;
-  geo.computeVertexNormals();
-
-  return geo;
-}
-
 function createBannerTextures(text: string, primaryColor: string = "#e11d48") {
   const canvasFront = document.createElement("canvas");
   const canvasBack = document.createElement("canvas");
@@ -64,40 +15,57 @@ function createBannerTextures(text: string, primaryColor: string = "#e11d48") {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    // Clean gradient background
+    // Swallowtail Pennant shape clipping
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(2048, 0);
+    ctx.lineTo(1820, 256); // Tail inner notch
+    ctx.lineTo(2048, 512);
+    ctx.lineTo(0, 512);
+    ctx.closePath();
+    ctx.clip();
+
+    // Warm white canvas backdrop
     const bgGrad = ctx.createLinearGradient(0, 0, 2048, 0);
     bgGrad.addColorStop(0, "#ffffff");
-    bgGrad.addColorStop(0.7, "#fffcfc");
-    bgGrad.addColorStop(1, "#fff0f2");
+    bgGrad.addColorStop(0.6, "#fffdfa");
+    bgGrad.addColorStop(1, "#fff1f2");
     ctx.fillStyle = bgGrad;
-    ctx.fillRect(0, 0, 2048, 512);
+    ctx.fill();
 
-    // Aerodynamic Border Stripes
+    // Pennant border stripes
     ctx.fillStyle = primaryColor;
     ctx.fillRect(0, 0, 2048, 28);
     ctx.fillRect(0, 484, 2048, 28);
 
-    ctx.fillStyle = "#f59e0b"; // Gold accent trim
+    ctx.fillStyle = "#f59e0b"; // Gold Trim
     ctx.fillRect(0, 28, 2048, 12);
     ctx.fillRect(0, 472, 2048, 12);
+
+    // Leading reinforced grommet hem
+    ctx.fillStyle = primaryColor;
+    ctx.fillRect(0, 0, 24, 512);
 
     if (isBack) {
       ctx.translate(2048, 0);
       ctx.scale(-1, 1);
     }
 
-    // Bold, centered typography shifted slightly left to avoid tail cutout
-    ctx.font = "900 148px 'Roboto', sans-serif";
+    // Bold typography
+    ctx.font = "900 144px 'Roboto', sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
 
-    // Text shadow
+    // Text drop shadow
     ctx.fillStyle = "rgba(0, 0, 0, 0.12)";
-    ctx.fillText(text, 960 + 4, 256 + 5);
+    ctx.fillText(text, 960, 260);
 
-    // Primary Text Fill
+    // Text fill
     ctx.fillStyle = primaryColor;
-    ctx.fillText(text, 960, 256);
+    ctx.fillText(text, 956, 256);
+
+    ctx.restore();
   };
 
   renderSide(canvasFront, false);
@@ -118,9 +86,35 @@ function createBannerTextures(text: string, primaryColor: string = "#e11d48") {
   return { texFront, texBack };
 }
 
+// Generates a custom swallowtail pennant mesh geometry
+function createPennantGeometry(width = 11.5, height = 2.7, segX = 40, segY = 8) {
+  const geo = new THREE.PlaneGeometry(width, height, segX, segY);
+  const pos = geo.attributes.position;
+  const halfW = width / 2;
+  const halfH = height / 2;
+  const notchDepth = width * 0.12;
+
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const u = (x + halfW) / width; // 0 (lead) to 1 (tail)
+
+    // Indent the rear vertex points toward center to form the swallowtail V-cut
+    if (u > 0.82) {
+      const tailFraction = (u - 0.82) / 0.18;
+      const distFromCenterY = 1 - Math.abs(y) / halfH; // 1 at middle horizontal, 0 at top/bottom edges
+      const notchIndent = tailFraction * distFromCenterY * notchDepth;
+      pos.setX(i, x - notchIndent);
+    }
+  }
+
+  geo.computeVertexNormals();
+  return geo;
+}
+
 export default function Helicopter({
   orbit = 16,
-  alt = 16,
+  alt = 18,
   bannerText = "Bryan R. Cañaveral",
   bannerColor = "#e11d48",
 }: {
@@ -143,8 +137,7 @@ export default function Helicopter({
   const sphereGeo = useMemo(() => new THREE.SphereGeometry(1, 18, 18), []);
   const cylinderGeo = useMemo(() => new THREE.CylinderGeometry(1, 1, 1, 16), []);
   const discGeo = useMemo(() => new THREE.CircleGeometry(2.3, 24), []);
-  const bannerGeo = useMemo(() => createBannerShapeGeometry(12.2, 2.35, 48, 6), []);
-  const spreaderBarGeo = useMemo(() => new THREE.CylinderGeometry(0.04, 0.04, 2.0, 10), []);
+  const bannerGeo = useMemo(() => createPennantGeometry(11.5, 2.7, 42, 8), []);
 
   const { texFront, texBack } = useMemo(
     () => createBannerTextures(bannerText || "Bryan R. Cañaveral", bannerColor || "#e11d48"),
@@ -217,11 +210,21 @@ export default function Helicopter({
   const cableMat = useMemo(() => new THREE.MeshBasicMaterial({ color: "#e2e8f0" }), []);
 
   const bannerFrontMat = useMemo(
-    () => new THREE.MeshBasicMaterial({ map: texFront, side: THREE.FrontSide }),
+    () =>
+      new THREE.MeshBasicMaterial({
+        map: texFront,
+        side: THREE.FrontSide,
+        transparent: true,
+      }),
     [texFront],
   );
   const bannerBackMat = useMemo(
-    () => new THREE.MeshBasicMaterial({ map: texBack, side: THREE.BackSide }),
+    () =>
+      new THREE.MeshBasicMaterial({
+        map: texBack,
+        side: THREE.BackSide,
+        transparent: true,
+      }),
     [texBack],
   );
 
@@ -232,7 +235,6 @@ export default function Helicopter({
       cylinderGeo.dispose();
       discGeo.dispose();
       bannerGeo.dispose();
-      spreaderBarGeo.dispose();
       texFront.dispose();
       texBack.dispose();
       liveryColorMat.dispose();
@@ -255,7 +257,6 @@ export default function Helicopter({
     cylinderGeo,
     discGeo,
     bannerGeo,
-    spreaderBarGeo,
     texFront,
     texBack,
     liveryColorMat,
@@ -283,7 +284,6 @@ export default function Helicopter({
     const grow = easeOutBack(clamp01(intro.current / 0.7));
     const scale = vis * grow;
 
-    // Flight Orbit Mechanics
     const heli = heliGroup.current;
     if (heli) {
       const flightSpeed = 0.38;
@@ -313,7 +313,6 @@ export default function Helicopter({
       heli.visible = scale > 0.02;
     }
 
-    // High Speed Rotor Animations
     if (mainRotorRef.current) mainRotorRef.current.rotation.y += dt * 44;
     if (mainRotorBlurRef.current) mainRotorBlurRef.current.rotation.z += dt * 25;
     if (tailRotorRef.current) tailRotorRef.current.rotation.x += dt * 48;
@@ -322,13 +321,12 @@ export default function Helicopter({
       strobeLightRef.current.intensity = Math.sin(t * 12) > 0.75 ? 2.5 : 0;
     }
 
-    // Progressive Aerodynamic Flutter
+    // Dynamic wave ripples from leading edge to tail tips
     const posAttr = bannerGeo.attributes.position;
     for (let i = 0; i < posAttr.count; i++) {
-      const u = posAttr.getX(i) / 12.2; // 0 (rigid front) to 1.0 (free tail)
-      const primaryWave = Math.sin(t * 7.4 - u * 5.2) * (u * u * 0.34);
-      const highFreqRipples = Math.cos(t * 15.0 - u * 11.0) * (u * u * 0.08);
-      posAttr.setZ(i, primaryWave + highFreqRipples);
+      const u = (posAttr.getX(i) + 5.75) / 11.5; // 0 at front spreader bar, 1 at tail
+      const wave = Math.sin(t * 6.5 - u * 4.8) * (0.01 + Math.pow(u, 1.4) * 0.28);
+      posAttr.setZ(i, wave);
     }
     posAttr.needsUpdate = true;
   });
@@ -339,7 +337,6 @@ export default function Helicopter({
       <mesh geometry={sphereGeo} material={liveryWhiteMat} position={[0, -0.1, 0.4]} scale={[0.68, 0.58, 1.25]} />
       <mesh geometry={sphereGeo} material={liveryColorMat} position={[0, 0.12, 0.35]} scale={[0.72, 0.65, 1.2]} />
 
-      {/* Glass */}
       <mesh
         geometry={sphereGeo}
         material={cockpitGlassMat}
@@ -347,7 +344,6 @@ export default function Helicopter({
         scale={[0.56, 0.5, 0.58]}
       />
 
-      {/* Turbines */}
       <mesh
         geometry={cylinderGeo}
         material={metalMat}
@@ -363,13 +359,13 @@ export default function Helicopter({
         scale={[0.13, 0.7, 0.13]}
       />
 
-      {/* Decals & Searchlight */}
       <mesh
         geometry={boxGeo}
         material={goldAccentMat}
         position={[0, 0.02, 0.32]}
         scale={[0.74, 0.08, 1.35]}
       />
+
       <mesh
         geometry={cylinderGeo}
         material={searchlightMat}
@@ -378,7 +374,7 @@ export default function Helicopter({
         scale={[0.1, 0.08, 0.1]}
       />
 
-      {/* Tail Boom & Stabilizers */}
+      {/* Tail Assembly */}
       <mesh
         geometry={cylinderGeo}
         material={liveryColorMat}
@@ -386,6 +382,7 @@ export default function Helicopter({
         rotation={[Math.PI / 2, 0, 0]}
         scale={[0.15, 1.85, 0.15]}
       />
+
       <mesh
         geometry={boxGeo}
         material={liveryWhiteMat}
@@ -399,7 +396,6 @@ export default function Helicopter({
         scale={[0.75, 0.03, 0.2]}
       />
 
-      {/* Tail Strobe & Rotor */}
       <pointLight ref={strobeLightRef} color="#ffffff" distance={4} decay={2} position={[0, 0.84, -2.25]} />
       <mesh geometry={sphereGeo} material={searchlightMat} position={[0, 0.82, -2.25]} scale={[0.04, 0.04, 0.04]} />
 
@@ -442,41 +438,53 @@ export default function Helicopter({
       <group position={[0, -0.66, 0.35]}>
         <mesh geometry={cylinderGeo} material={metalMat} position={[-0.56, 0, 0]} rotation={[Math.PI / 2, 0, 0]} scale={[0.045, 2.1, 0.045]} />
         <mesh geometry={cylinderGeo} material={metalMat} position={[0.56, 0, 0]} rotation={[Math.PI / 2, 0, 0]} scale={[0.045, 2.1, 0.045]} />
+        
         <mesh geometry={cylinderGeo} material={metalMat} position={[-0.32, 0.26, 0.42]} scale={[0.035, 0.48, 0.035]} />
         <mesh geometry={cylinderGeo} material={metalMat} position={[0.32, 0.26, 0.42]} scale={[0.035, 0.48, 0.035]} />
         <mesh geometry={cylinderGeo} material={metalMat} position={[-0.32, 0.26, -0.38]} scale={[0.035, 0.48, 0.035]} />
         <mesh geometry={cylinderGeo} material={metalMat} position={[0.32, 0.26, -0.38]} scale={[0.035, 0.48, 0.035]} />
+
         <mesh geometry={sphereGeo} material={navRedMat} position={[-0.58, 0.06, 0.9]} scale={[0.045, 0.045, 0.045]} />
         <mesh geometry={sphereGeo} material={navGreenMat} position={[0.58, 0.06, 0.9]} scale={[0.045, 0.045, 0.045]} />
       </group>
 
-      {/* --- Rigged Tow Line & Aerodynamic Swallowtail Banner --- */}
-      <group position={[0, -0.22, -2.1]}>
-        {/* Upper & Lower Bridle Tow Cables */}
+      {/* Trailing Tow Rigging & Swallowtail Banner */}
+      <group position={[0, -0.25, -2.2]}>
+        {/* Main Tow Cable */}
         <mesh
           geometry={cylinderGeo}
           material={cableMat}
-          position={[0, -0.15, -1.0]}
+          position={[0, -0.3, -1.0]}
           rotation={[0.32, 0, 0]}
-          scale={[0.018, 2.15, 0.018]}
+          scale={[0.018, 2.2, 0.018]}
+        />
+
+        {/* Tow Bridle Spreaders */}
+        <mesh
+          geometry={cylinderGeo}
+          material={cableMat}
+          position={[0, -0.35, -2.2]}
+          rotation={[0.55, 0, 0]}
+          scale={[0.016, 1.4, 0.016]}
         />
         <mesh
           geometry={cylinderGeo}
           material={cableMat}
-          position={[0, -0.75, -1.0]}
-          rotation={[-0.32, 0, 0]}
-          scale={[0.018, 2.15, 0.018]}
+          position={[0, -1.25, -2.2]}
+          rotation={[-0.55, 0, 0]}
+          scale={[0.016, 1.4, 0.016]}
         />
 
-        {/* Rigged Spreader Bar */}
+        {/* Leading Spreader Bar */}
         <mesh
-          geometry={spreaderBarGeo}
+          geometry={cylinderGeo}
           material={metalMat}
-          position={[0, -0.45, -2.0]}
+          position={[0, -0.8, -2.9]}
+          scale={[0.04, 2.85, 0.04]}
         />
 
-        {/* Trailing Streamer Banner */}
-        <group position={[0, -0.45, -2.0]} rotation={[0, -Math.PI / 2, 0]}>
+        {/* Swallowtail Pennant Banner */}
+        <group position={[0, -0.8, -8.65]} rotation={[0, -Math.PI / 2, 0]}>
           <mesh ref={frontBannerMeshRef} geometry={bannerGeo} material={bannerFrontMat} />
           <mesh ref={backBannerMeshRef} geometry={bannerGeo} material={bannerBackMat} />
         </group>
