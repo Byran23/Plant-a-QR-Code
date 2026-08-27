@@ -80,7 +80,7 @@ function createBalloonEnvelopeGeometry() {
 export default function HotAirBalloon({
   offsetX = 4.5,
   offsetZ = 3.5,
-  alt = 96, // Set high in the upper sky atmosphere
+  alt = 96, // Upper sky layer
 }: {
   offsetX?: number;
   offsetZ?: number;
@@ -206,30 +206,28 @@ export default function HotAirBalloon({
 
     const g = groupRef.current;
     if (g) {
-      // High-altitude suspension (placed high in the sky, fully locked without dips)
-    const highAltitude = 95; // Adjusted to a much higher altitude layer
+      // Locked altitude: zero up/down dip or bobbing
+      const driftX = offsetX + Math.sin(t * 0.05) * 0.15;
+      const driftZ = offsetZ + Math.cos(t * 0.04) * 0.15;
+      const currentY = alt;
 
-    const driftX = offsetX + Math.sin(t * 0.04) * 0.2;
-    const driftZ = offsetZ + Math.cos(t * 0.03) * 0.2;
-    const currentY = highAltitude;
+      g.position.set(driftX, currentY, driftZ);
+      g.rotation.set(0, t * 0.012, 0);
 
-    g.position.set(driftX, currentY, driftZ);
-    g.rotation.set(0, t * 0.008, 0);
+      // Scaled up for clarity in the upper atmosphere
+      g.scale.setScalar(Math.max(0.0001, 1.85 * scale));
+      g.visible = scale > 0.02;
+    }
 
-    // Scaled up so it remains sharp and visible high in the sky
-    g.scale.setScalar(Math.max(0.0001, 1.8 * scale));
-    g.visible = scale > 0.02;
-
-    // Burner flame expansion matching thermal lift cycles
-    const liftPulse = Math.max(0, Math.cos(t * 0.25));
-    const flicker = Math.sin(t * 14) * 0.25 + Math.cos(t * 22) * 0.1;
+    // Steady burner glow
+    const flicker = Math.sin(t * 14) * 0.15 + Math.cos(t * 22) * 0.08;
 
     if (burnerRef.current) {
-      burnerRef.current.intensity = Math.max(0.4, 1.4 + liftPulse * 1.0 + flicker);
+      burnerRef.current.intensity = Math.max(0.4, 1.4 + flicker);
     }
     if (flameMeshRef.current) {
-      const fScale = 1 + liftPulse * 0.45 + flicker * 0.2;
-      flameMeshRef.current.scale.set(fScale, fScale * 1.25, fScale);
+      const fScale = 1 + flicker * 0.2;
+      flameMeshRef.current.scale.set(fScale, fScale * 1.2, fScale);
     }
   });
 
@@ -263,9 +261,9 @@ export default function HotAirBalloon({
         <pointLight
           ref={burnerRef}
           color="#ff7900"
-          distance={6}
+          distance={10}
           decay={2}
-          intensity={1.6}
+          intensity={1.8}
         />
       </group>
 
