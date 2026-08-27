@@ -5,7 +5,7 @@ import Scene from "./three/Scene";
 import Controls from "./components/Controls";
 import PinLogin from "./components/PinLogin";
 import { FooterBits, Header, Hint, Toast, Watermark } from "./components/Overlays";
-import { buildGrid, downloadPng, maskUrl, readHash, writeHash, type ShareState } from "./lib/qr";
+import { buildGrid, downloadPng, packData, readHash, writeHash, type ShareState } from "./lib/qr";
 import { resolvePalette, SEASONS } from "./lib/palettes";
 import { hashSeed } from "./lib/random";
 
@@ -99,20 +99,15 @@ export default function App() {
   const onCopy = useCallback(() => {
     const params = new URLSearchParams();
 
-    // 1. Shorthand masked target link
-    params.set("m", maskUrl(committed));
+    // 1. Pack URL, Helicopter Banner Text, and Theme Label into a single masked key
+    const packed = packData(committed, bannerText, customThemeLabel);
+    if (packed) params.set("m", packed);
 
-    // 2. Only append non-default state variables to keep the URL ultra short
+    // 2. Add remaining configuration if customized
     if (season !== 0) params.set("s", String(season));
     if (leaf) params.set("lf", leaf.replace("#", ""));
     if (groundColor) params.set("gd", groundColor.replace("#", ""));
     if (salt !== 0) params.set("r", String(salt));
-    if (customThemeLabel && customThemeLabel !== "Editable") {
-      params.set("lbl", customThemeLabel);
-    }
-    if (bannerText && bannerText !== "Bryan R. Cañaveral") {
-      params.set("bt", bannerText);
-    }
     if (bannerColor && bannerColor.toLowerCase() !== "#e11d48") {
       params.set("bc", bannerColor.replace("#", ""));
     }
@@ -137,12 +132,12 @@ export default function App() {
     }
   }, [
     committed,
+    bannerText,
+    customThemeLabel,
     season,
     leaf,
     groundColor,
     salt,
-    customThemeLabel,
-    bannerText,
     bannerColor,
     notify,
   ]);
@@ -181,7 +176,7 @@ export default function App() {
 
   return (
     <div className="relative h-full w-full overflow-hidden font-sans text-stone-900 select-none">
-      {/* Dynamic Seasonal Wallpaper Backdrop */}
+      {/* Seasonal Wallpaper Backdrop */}
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
         <AnimatePresence>
           <motion.div

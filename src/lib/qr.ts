@@ -19,56 +19,69 @@ export interface ShareState {
 }
 
 /**
- * Ultra-compact URL-safe encoder/masker:
- * Cleans http/https boilerplate where possible and strips padding.
+ * Ultra-compact single payload packer:
+ * Combines URL, Banner Text, and Theme Label into a single masked string separated by delimiters (\x1f / Unit Separator).
  */
-export function maskUrl(rawUrl: string): string {
-  if (!rawUrl) return "";
-  let clean = rawUrl.trim();
+export function packData(rawUrl: string, bannerText?: string, label?: string): string {
+  if (!rawUrl && !bannerText && !label) return "";
 
-  // Strip standard prefixes to shave characters
+  let cleanUrl = (rawUrl || "").trim();
   let prefixFlag = "0";
-  if (clean.startsWith("https://")) {
+  if (cleanUrl.startsWith("https://")) {
     prefixFlag = "s";
-    clean = clean.slice(8);
-  } else if (clean.startsWith("http://")) {
+    cleanUrl = cleanUrl.slice(8);
+  } else if (cleanUrl.startsWith("http://")) {
     prefixFlag = "h";
-    clean = clean.slice(7);
+    cleanUrl = cleanUrl.slice(7);
   }
 
+  const bt = (bannerText && bannerText !== "Bryan R. Cañaveral") ? bannerText.trim() : "";
+  const lbl = (label && label !== "Editable") ? label.trim() : "";
+
+  // Pack as: [prefixFlag][cleanUrl] ~ [bt] ~ [lbl]
+  const rawPayload = `${prefixFlag}${cleanUrl}\x1f${bt}\x1f${lbl}`;
+
   try {
-    const b64 = btoa(encodeURIComponent(clean))
+    return btoa(encodeURIComponent(rawPayload))
       .replace(/\+/g, "-")
       .replace(/\//g, "_")
       .replace(/=+$/, "");
-    return `${prefixFlag}${b64}`;
   } catch {
-    return encodeURIComponent(rawUrl);
+    return encodeURIComponent(rawPayload);
   }
 }
 
-export function unmaskUrl(masked: string): string {
-  if (!masked) return "";
-  const prefixFlag = masked[0];
-  const payload = masked.slice(1);
-
-  let prefix = "";
-  if (prefixFlag === "s") prefix = "https://";
-  else if (prefixFlag === "h") prefix = "http://";
+/**
+ * Unpacks the combined masked string into { url, bannerText, label }
+ */
+export function unpackData(packed: string): { url?: string; bannerText?: string; label?: string } {
+  if (!packed) return {};
 
   try {
-    let base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
+    let base64 = packed.replace(/-/g, "+").replace(/_/g, "/");
     while (base64.length % 4) {
       base64 += "=";
     }
     const decoded = decodeURIComponent(atob(base64));
-    return prefix ? `${prefix}${decoded}` : decoded;
-  } catch {
-    try {
-      return decodeURIComponent(masked);
-    } catch {
-      return masked;
+    const parts = decoded.split("\x1f");
+
+    const urlPart = parts[0] || "";
+    const bannerText = parts[1] || undefined;
+    const label = parts[2] || undefined;
+
+    let url: string | undefined = undefined;
+    if (urlPart) {
+      const prefixFlag = urlPart[0];
+      const cleanUrl = urlPart.slice(1);
+      let prefix = "";
+      if (prefixFlag === "s") prefix = "https://";
+      else if (prefixFlag === "h") prefix = "http://";
+      url = prefix ? `${prefix}${cleanUrl}` : cleanUrl;
     }
+
+    return { url, bannerText, label };
+  } catch {
+    return {};
   }
 }
 
@@ -105,7 +118,7 @@ export async function downloadPng(text: string, darkColor: string, lightColor: s
 }
 
 /**
- * Reads compact hash parameters
+ * Reads hash parameters, extracting the joined payload from `m`
  */
 export function readHash(): ShareState {
   if (typeof window === "undefined") return { salt: 0 };
@@ -113,15 +126,16 @@ export function readHash(): ShareState {
   const params = new URLSearchParams(rawHash || window.location.search);
 
   const maskedParam = params.get("m");
-  const rawParam = params.get("u");
-  const resolvedUrl = maskedParam ? unmaskUrl(maskedParam) : rawParam ?? undefined;
+  const unpacked = maskedParam ? unpackData(maskedParam) : {};
+
+  const resolvedUrl = unpacked.url ?? params.get("u") ?? undefined;
+  const resolvedBannerText = unpacked.bannerText ?? params.get("bt") ?? undefined;
+  const resolvedLabel = unpacked.label ?? params.get("lbl") ?? undefined;
 
   const s = params.get("s");
   const lf = params.get("lf");
   const gd = params.get("gd");
   const r = params.get("r");
-  const lbl = params.get("lbl");
-  const bt = params.get("bt");
   const bc = params.get("bc");
 
   return {
@@ -130,22 +144,25 @@ export function readHash(): ShareState {
     leaf: lf ? `#${lf}` : null,
     ground: gd ? `#${gd}` : null,
     salt: r !== null ? Number(r) : 0,
-    label: lbl ?? undefined,
-    bannerText: bt ?? undefined,
+    label: resolvedLabel,
+    bannerText: resolvedBannerText,
     bannerColor: bc ? `#${bc}` : undefined,
   };
 }
 
 /**
- * Writes compressed parameters to the hash
+ * Writes unified packed state to the browser hash
  */
 export function writeHash(state: ShareState) {
   if (typeof window === "undefined") return;
   const params = new URLSearchParams();
 
-  if (state.url) {
-    params.set("m", maskUrl(state.url));
+  // Pack URL, bannerText, and label into a single `m` key
+  if (state.url || state.bannerText || state.label) {
+    const packed = packData(state.url || "", state.bannerText, state.label);
+    if (packed) params.set("m", packed);
   }
+
   if (state.season !== undefined && state.season !== 0) {
     params.set("s", String(state.season));
   }
@@ -158,13 +175,7 @@ export function writeHash(state: ShareState) {
   if (state.salt) {
     params.set("r", String(state.salt));
   }
-  if (state.label && state.label !== "Editable") {
-    params.set("lbl", state.label);
-  }
-  if (state.bannerText && state.bannerText !== "Bryan R. Cañaveral") {
-    params.set("bt", state.bannerText);
-  }
-  if (state.bannerColor && state.bannerColor !== "#e11d48") {
+  if (state.bannerColor && state.bannerColor.toLowerCase() !== "#e11d48") {
     params.set("bc", state.bannerColor.replace("#", ""));
   }
 
