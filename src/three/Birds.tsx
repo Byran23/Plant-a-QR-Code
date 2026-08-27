@@ -1,4 +1,4 @@
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { mulberry32 } from "../lib/random";
@@ -11,14 +11,15 @@ interface BirdCfg {
   h: number;
   dir: number;
   size: number;
-  flap: number;
+  flapSpeed: number;
+  pitchOffset: number;
 }
 
 export default function Birds({
   orbit,
   alt,
   season = 0,
-  count = 4,
+  count = 6,
 }: {
   orbit: number;
   alt: number;
@@ -27,186 +28,132 @@ export default function Birds({
 }) {
   const birds = useMemo<BirdCfg[]>(() => {
     const rng = mulberry32(0xb14d5);
-    return Array.from({ length: count }, () => ({
-      phase: rng() * Math.PI * 2,
-      speed: 0.18 + rng() * 0.16,
-      r: orbit * (0.82 + rng() * 0.45),
-      h: alt + (rng() - 0.5) * 3.2,
-      dir: rng() < 0.75 ? 1 : -1,
-      size: 0.8 + rng() * 0.4,
-      flap: 8 + rng() * 4,
+    return Array.from({ length: count }, (_, i) => ({
+      phase: (i / count) * Math.PI * 2 + (rng() - 0.5) * 0.4,
+      speed: 0.16 + rng() * 0.12,
+      r: orbit * (0.85 + (i % 3) * 0.18 + rng() * 0.1),
+      h: alt + (i % 2 === 0 ? 1 : -1) * (1.2 + rng() * 1.8),
+      dir: rng() < 0.8 ? 1 : -1,
+      size: 0.85 + rng() * 0.35,
+      flapSpeed: 7 + rng() * 3.5,
+      pitchOffset: (rng() - 0.5) * 0.1,
     }));
   }, [orbit, alt, count]);
 
-  // Normalized Season index: 0 = Sakura, 1 = Summer, 2 = Autumn, 3 = Winter
+  // Normalized Season: 0 = Sakura/Spring, 1 = Summer, 2 = Autumn, 3 = Winter
   const normalizedSeason = ((season % 4) + 4) % 4;
-  const isBalloonSeason = normalizedSeason === 0 || normalizedSeason === 1; // Sakura & Summer
 
-  // Reusable Base Geometries
-  const boxGeo = useMemo(() => new THREE.BoxGeometry(1, 1, 1), []);
-  const sphereGeo = useMemo(() => new THREE.SphereGeometry(1, 16, 16), []);
-  const cylinderGeo = useMemo(() => new THREE.CylinderGeometry(1, 1, 1, 16), []);
+  // Seasonal plumage palette (Sakura white-doves, Summer swallows, Autumn songbirds, Winter snow buntings)
+  const birdColors = useMemo(() => {
+    switch (normalizedSeason) {
+      case 0: // Sakura: Clean white body with subtle rose tint
+        return { body: "#fffbfc", wing: "#fbcfe8", beak: "#fb923c", tail: "#f472b6" };
+      case 1: // Summer: Deep navy swallow with warm belly
+        return { body: "#f8fafc", wing: "#1e3a8a", beak: "#f59e0b", tail: "#0f172a" };
+      case 2: // Autumn: Warm cedar songbird
+        return { body: "#fed7aa", wing: "#9a3412", beak: "#d97706", tail: "#7c2d12" };
+      case 3: // Winter: Frost white & slate grey
+      default:
+        return { body: "#f1f5f9", wing: "#64748b", beak: "#f59e0b", tail: "#334155" };
+    }
+  }, [normalizedSeason]);
 
-  // Bird Materials
+  // Reusable Geometries
+  const bodyGeo = useMemo(() => new THREE.ConeGeometry(0.24, 0.65, 5), []);
+  const headGeo = useMemo(() => new THREE.SphereGeometry(0.16, 12, 12), []);
+  const beakGeo = useMemo(() => new THREE.ConeGeometry(0.06, 0.22, 4), []);
+  const innerWingGeo = useMemo(() => new THREE.BoxGeometry(0.38, 0.035, 0.26), []);
+  const outerWingGeo = useMemo(() => new THREE.BoxGeometry(0.34, 0.025, 0.22), []);
+  const tailGeo = useMemo(() => new THREE.BoxGeometry(0.18, 0.025, 0.32), []);
+
+  // Materials
   const bodyMat = useMemo(
-    () => new THREE.MeshStandardMaterial({ color: "#fdfdfa", roughness: 0.8 }),
-    [],
+    () => new THREE.MeshStandardMaterial({ color: birdColors.body, roughness: 0.65 }),
+    [birdColors.body],
   );
   const wingMat = useMemo(
-    () => new THREE.MeshStandardMaterial({ color: "#46536a", roughness: 0.8 }),
-    [],
+    () => new THREE.MeshStandardMaterial({ color: birdColors.wing, roughness: 0.6 }),
+    [birdColors.wing],
   );
   const beakMat = useMemo(
-    () => new THREE.MeshStandardMaterial({ color: "#f5a623", roughness: 0.7 }),
-    [],
+    () => new THREE.MeshStandardMaterial({ color: birdColors.beak, roughness: 0.4 }),
+    [birdColors.beak],
+  );
+  const tailMat = useMemo(
+    () => new THREE.MeshStandardMaterial({ color: birdColors.tail, roughness: 0.7 }),
+    [birdColors.tail],
   );
 
-  // Plane Materials
-  const planeWhiteMat = useMemo(
-    () => new THREE.MeshStandardMaterial({ color: "#f0f3f6", roughness: 0.4 }),
-    [],
-  );
-  const planeRedMat = useMemo(
-    () => new THREE.MeshStandardMaterial({ color: "#e63946", roughness: 0.5 }),
-    [],
-  );
-  const planeGlassMat = useMemo(
-    () =>
-      new THREE.MeshStandardMaterial({
-        color: "#1d3557",
-        roughness: 0.2,
-        metalness: 0.8,
-      }),
-    [],
-  );
-
-  // Hot Air Balloon Materials (Sakura / Summer)
-  const balloonMainMat = useMemo(
-    () =>
-      new THREE.MeshStandardMaterial({
-        color: normalizedSeason === 0 ? "#ff8fa3" : "#f4a261",
-        roughness: 0.6,
-      }),
-    [normalizedSeason],
-  );
-  const balloonAccentMat = useMemo(
-    () =>
-      new THREE.MeshStandardMaterial({
-        color: normalizedSeason === 0 ? "#fff0f3" : "#e76f51",
-        roughness: 0.6,
-      }),
-    [normalizedSeason],
-  );
-  const basketMat = useMemo(
-    () => new THREE.MeshStandardMaterial({ color: "#8d6e63", roughness: 0.9 }),
-    [],
-  );
-
-  // Blimp Materials (Autumn / Winter)
-  const blimpBodyMat = useMemo(
-    () =>
-      new THREE.MeshStandardMaterial({
-        color: normalizedSeason === 2 ? "#e9ecef" : "#dbe4ee",
-        roughness: 0.5,
-        metalness: 0.15,
-      }),
-    [normalizedSeason],
-  );
-  const blimpStripeMat = useMemo(
-    () =>
-      new THREE.MeshStandardMaterial({
-        color: normalizedSeason === 2 ? "#d97706" : "#0284c7",
-        roughness: 0.6,
-      }),
-    [normalizedSeason],
-  );
+  useEffect(() => {
+    return () => {
+      bodyGeo.dispose();
+      headGeo.dispose();
+      beakGeo.dispose();
+      innerWingGeo.dispose();
+      outerWingGeo.dispose();
+      tailGeo.dispose();
+      bodyMat.dispose();
+      wingMat.dispose();
+      beakMat.dispose();
+      tailMat.dispose();
+    };
+  }, [bodyGeo, headGeo, beakGeo, innerWingGeo, outerWingGeo, tailGeo, bodyMat, wingMat, beakMat, tailMat]);
 
   const rootRefs = useRef<Array<THREE.Group | null>>([]);
   const wingLRefs = useRef<Array<THREE.Group | null>>([]);
   const wingRRefs = useRef<Array<THREE.Group | null>>([]);
-  const planeRef = useRef<THREE.Group>(null);
-  const skyCraftRef = useRef<THREE.Group>(null);
+  const outerWingLRefs = useRef<Array<THREE.Group | null>>([]);
+  const outerWingRRefs = useRef<Array<THREE.Group | null>>([]);
   const intro = useRef(0);
 
   useFrame((state, rawDt) => {
     const dt = Math.min(rawDt, 0.05);
     const t = state.clock.elapsedTime;
-    intro.current = Math.min(1, intro.current + dt * 0.8);
+    intro.current = Math.min(1, intro.current + dt * 0.85);
+
     const vis = 1 - smooth01(morph.p);
     const grow = easeOutBack(clamp01(intro.current / 0.7));
 
-    // 1. Birds Animation
     birds.forEach((b, i) => {
       const g = rootRefs.current[i];
       if (!g) return;
+
       const sc = b.size * vis * grow;
       g.visible = sc > 0.02;
       if (!g.visible) return;
+
       const a = b.phase + t * b.speed * b.dir;
-      const r = b.r + Math.sin(t * 0.4 + b.phase) * 0.6;
-      g.position.set(
-        Math.cos(a) * r,
-        b.h + Math.sin(t * 0.7 + b.phase) * 0.9,
-        Math.sin(a) * r,
-      );
-      g.rotation.set(0, -a + (b.dir > 0 ? 0 : Math.PI), 0.18 * b.dir, "YXZ");
+      const r = b.r + Math.sin(t * 0.45 + b.phase) * 0.8;
+      const y = b.h + Math.sin(t * 0.75 + b.phase * 1.5) * 0.75;
+
+      g.position.set(Math.cos(a) * r, y, Math.sin(a) * r);
+
+      // Orientation tangent + banking roll into turn
+      const yaw = -a + (b.dir > 0 ? 0 : Math.PI);
+      const roll = 0.22 * b.dir + Math.sin(t * 1.2 + b.phase) * 0.06;
+      const pitch = b.pitchOffset + Math.sin(t * 0.75 + b.phase * 1.5) * 0.08;
+      g.rotation.set(pitch, yaw, roll, "YXZ");
       g.scale.setScalar(Math.max(0.0001, sc));
-      const w = Math.sin(t * b.flap + b.phase) * 0.62;
+
+      // Organic dual-joint wing stroke (inner arm + articulated outer tip)
+      const primaryFlap = Math.sin(t * b.flapSpeed + b.phase);
+      const innerAngle = primaryFlap * 0.55;
+      const outerAngle = Math.sin(t * b.flapSpeed + b.phase - 0.4) * 0.45;
+
       const wl = wingLRefs.current[i];
       const wr = wingRRefs.current[i];
-      if (wl) wl.rotation.z = w;
-      if (wr) wr.rotation.z = -w;
+      const owl = outerWingLRefs.current[i];
+      const owr = outerWingRRefs.current[i];
+
+      if (wl) wl.rotation.z = innerAngle;
+      if (wr) wr.rotation.z = -innerAngle;
+      if (owl) owl.rotation.z = outerAngle;
+      if (owr) owr.rotation.z = -outerAngle;
     });
-
-    // 2. Occasional Airplane Flight Cross
-    const pGroup = planeRef.current;
-    if (pGroup) {
-      const planeCycle = 38; // Crosses every 38 seconds
-      const planeProgress = (t % planeCycle) / planeCycle;
-      const span = orbit * 5.5;
-      const currentX = (planeProgress - 0.5) * span;
-
-      pGroup.position.set(
-        currentX,
-        alt + 6.5 + Math.sin(t * 0.5) * 0.4,
-        -orbit * 1.8 + Math.cos(t * 0.3) * 1.2,
-      );
-      pGroup.rotation.set(0.05, Math.PI / 2 + 0.15, 0.08);
-      const planeSc = Math.max(0.0001, 1.1 * vis * grow);
-      pGroup.scale.setScalar(planeSc);
-      pGroup.visible = planeSc > 0.02 && planeProgress > 0.05 && planeProgress < 0.95;
-    }
-
-    // 3. Floating Hot Air Balloon / Blimp
-    const craftGroup = skyCraftRef.current;
-    if (craftGroup) {
-      const craftSpeed = 0.045;
-      const craftAngle = t * craftSpeed + 1.2;
-      const craftRadius = orbit * 2.2;
-      const bobbing = Math.sin(t * 0.8) * 0.6;
-
-      craftGroup.position.set(
-        Math.cos(craftAngle) * craftRadius,
-        alt + 4.2 + bobbing,
-        Math.sin(craftAngle) * craftRadius,
-      );
-
-      // Face motion direction with gentle drift tilt
-      craftGroup.rotation.set(
-        Math.sin(t * 0.5) * 0.04,
-        -craftAngle + Math.PI / 2,
-        Math.cos(t * 0.6) * 0.04,
-      );
-
-      const craftSc = Math.max(0.0001, 1.25 * vis * grow);
-      craftGroup.scale.setScalar(craftSc);
-      craftGroup.visible = craftSc > 0.02;
-    }
   });
 
   return (
-    <>
-      {/* Little Orbiting Birds */}
+    <group>
       {birds.map((_, i) => (
         <group
           key={i}
@@ -214,214 +161,94 @@ export default function Birds({
             rootRefs.current[i] = g;
           }}
         >
-          <mesh geometry={boxGeo} material={bodyMat} scale={[0.34, 0.3, 0.52]} />
+          {/* Tapered Aerodynamic Body */}
           <mesh
-            geometry={boxGeo}
+            geometry={bodyGeo}
             material={bodyMat}
-            position={[0, 0.16, 0.3]}
-            scale={[0.24, 0.22, 0.24]}
+            rotation={[-Math.PI / 2, 0, 0]}
+            position={[0, 0, 0]}
+            castShadow
           />
+
+          {/* Head & Eyes */}
           <mesh
-            geometry={boxGeo}
+            geometry={headGeo}
+            material={bodyMat}
+            position={[0, 0.08, 0.36]}
+            scale={[0.9, 0.95, 1.05]}
+          />
+
+          {/* Sharp Beak */}
+          <mesh
+            geometry={beakGeo}
             material={beakMat}
-            position={[0, 0.14, 0.48]}
-            scale={[0.09, 0.07, 0.16]}
+            position={[0, 0.06, 0.54]}
+            rotation={[Math.PI / 2, 0, 0]}
           />
+
+          {/* Feathery Tail Fan */}
           <mesh
-            geometry={boxGeo}
-            material={wingMat}
-            position={[0, 0.05, -0.34]}
-            scale={[0.2, 0.06, 0.24]}
+            geometry={tailGeo}
+            material={tailMat}
+            position={[0, 0.04, -0.42]}
+            rotation={[-0.12, 0, 0]}
           />
+
+          {/* Articulated Left Wing */}
           <group
-            position={[-0.16, 0.12, 0.02]}
+            position={[-0.12, 0.06, 0.08]}
             ref={(g) => {
               wingLRefs.current[i] = g;
             }}
           >
             <mesh
-              geometry={boxGeo}
+              geometry={innerWingGeo}
               material={wingMat}
-              position={[-0.3, 0, 0]}
-              scale={[0.52, 0.06, 0.34]}
+              position={[-0.18, 0, 0]}
             />
+            {/* Outer Wing Tip Joint */}
+            <group
+              position={[-0.36, 0, 0]}
+              ref={(g) => {
+                outerWingLRefs.current[i] = g;
+              }}
+            >
+              <mesh
+                geometry={outerWingGeo}
+                material={wingMat}
+                position={[-0.16, 0, -0.02]}
+              />
+            </group>
           </group>
+
+          {/* Articulated Right Wing */}
           <group
-            position={[0.16, 0.12, 0.02]}
+            position={[0.12, 0.06, 0.08]}
             ref={(g) => {
               wingRRefs.current[i] = g;
             }}
           >
             <mesh
-              geometry={boxGeo}
+              geometry={innerWingGeo}
               material={wingMat}
-              position={[0.3, 0, 0]}
-              scale={[0.52, 0.06, 0.34]}
+              position={[0.18, 0, 0]}
             />
+            {/* Outer Wing Tip Joint */}
+            <group
+              position={[0.36, 0, 0]}
+              ref={(g) => {
+                outerWingRRefs.current[i] = g;
+              }}
+            >
+              <mesh
+                geometry={outerWingGeo}
+                material={wingMat}
+                position={[0.16, 0, -0.02]}
+              />
+            </group>
           </group>
         </group>
       ))}
-
-      {/* Crossing Airplane */}
-      <group ref={planeRef}>
-        {/* Fuselage */}
-        <mesh
-          geometry={cylinderGeo}
-          material={planeWhiteMat}
-          rotation={[Math.PI / 2, 0, 0]}
-          scale={[0.28, 2.2, 0.28]}
-        />
-        {/* Nose Cone */}
-        <mesh
-          geometry={sphereGeo}
-          material={planeRedMat}
-          position={[0, 0, 1.1]}
-          scale={[0.27, 0.27, 0.45]}
-        />
-        {/* Cockpit Window */}
-        <mesh
-          geometry={boxGeo}
-          material={planeGlassMat}
-          position={[0, 0.16, 0.72]}
-          scale={[0.22, 0.14, 0.32]}
-        />
-        {/* Main Wings */}
-        <mesh
-          geometry={boxGeo}
-          material={planeWhiteMat}
-          position={[0, 0, 0.1]}
-          scale={[2.8, 0.05, 0.58]}
-        />
-        {/* Wingtips */}
-        <mesh
-          geometry={boxGeo}
-          material={planeRedMat}
-          position={[-1.4, 0.08, 0.1]}
-          scale={[0.06, 0.2, 0.52]}
-        />
-        <mesh
-          geometry={boxGeo}
-          material={planeRedMat}
-          position={[1.4, 0.08, 0.1]}
-          scale={[0.06, 0.2, 0.52]}
-        />
-        {/* Tail Horizontal Stabilizer */}
-        <mesh
-          geometry={boxGeo}
-          material={planeWhiteMat}
-          position={[0, 0.05, -0.95]}
-          scale={[0.95, 0.04, 0.32]}
-        />
-        {/* Tail Fin */}
-        <mesh
-          geometry={boxGeo}
-          material={planeRedMat}
-          position={[0, 0.32, -0.95]}
-          scale={[0.05, 0.52, 0.38]}
-        />
-      </group>
-
-      {/* Floating Seasonal Craft: Hot Air Balloon vs Blimp */}
-      <group ref={skyCraftRef}>
-        {isBalloonSeason ? (
-          /* Hot Air Balloon (Sakura & Summer) */
-          <group scale={1.1}>
-            <mesh
-              geometry={sphereGeo}
-              material={balloonMainMat}
-              position={[0, 1.35, 0]}
-              scale={[1.15, 1.45, 1.15]}
-            />
-            <mesh
-              geometry={cylinderGeo}
-              material={balloonAccentMat}
-              position={[0, 0.52, 0]}
-              scale={[0.55, 0.4, 0.55]}
-            />
-            {/* Basket Ropes */}
-            <mesh
-              geometry={cylinderGeo}
-              material={basketMat}
-              position={[0.2, 0.16, 0.2]}
-              scale={[0.02, 0.42, 0.02]}
-            />
-            <mesh
-              geometry={cylinderGeo}
-              material={basketMat}
-              position={[-0.2, 0.16, 0.2]}
-              scale={[0.02, 0.42, 0.02]}
-            />
-            <mesh
-              geometry={cylinderGeo}
-              material={basketMat}
-              position={[0.2, 0.16, -0.2]}
-              scale={[0.02, 0.42, 0.02]}
-            />
-            <mesh
-              geometry={cylinderGeo}
-              material={basketMat}
-              position={[-0.2, 0.16, -0.2]}
-              scale={[0.02, 0.42, 0.02]}
-            />
-            {/* Passenger Basket */}
-            <mesh
-              geometry={boxGeo}
-              material={basketMat}
-              position={[0, -0.12, 0]}
-              scale={[0.42, 0.32, 0.42]}
-            />
-          </group>
-        ) : (
-          /* Airship / Blimp (Autumn & Winter) */
-          <group scale={1.2}>
-            {/* Main Hull */}
-            <mesh
-              geometry={sphereGeo}
-              material={blimpBodyMat}
-              scale={[0.92, 0.95, 2.3]}
-            />
-            {/* Side Accent Stripe */}
-            <mesh
-              geometry={boxGeo}
-              material={blimpStripeMat}
-              position={[0, 0, 0]}
-              scale={[0.96, 0.18, 2.1]}
-            />
-            {/* Gondola / Cabin */}
-            <mesh
-              geometry={boxGeo}
-              material={planeGlassMat}
-              position={[0, -0.88, 0.1]}
-              scale={[0.34, 0.26, 0.9]}
-            />
-            {/* Tail Fins */}
-            <mesh
-              geometry={boxGeo}
-              material={blimpStripeMat}
-              position={[0, 0.45, -1.9]}
-              scale={[0.06, 0.65, 0.55]}
-            />
-            <mesh
-              geometry={boxGeo}
-              material={blimpStripeMat}
-              position={[0, -0.45, -1.9]}
-              scale={[0.06, 0.65, 0.55]}
-            />
-            <mesh
-              geometry={boxGeo}
-              material={blimpStripeMat}
-              position={[0.45, 0, -1.9]}
-              scale={[0.65, 0.06, 0.55]}
-            />
-            <mesh
-              geometry={boxGeo}
-              material={blimpStripeMat}
-              position={[-0.45, 0, -1.9]}
-              scale={[0.65, 0.06, 0.55]}
-            />
-          </group>
-        )}
-      </group>
-    </>
+    </group>
   );
 }
