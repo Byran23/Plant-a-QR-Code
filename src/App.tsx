@@ -96,8 +96,7 @@ export default function App() {
     }
   }, [committed, season, leaf, groundColor, salt, isMinimalView, customThemeLabel, bannerText, bannerColor]);
 
-  const onCopy = useCallback(() => {
-    // Generates the single minimal #z= hash payload
+  const onCopy = useCallback(async () => {
     const packed = packState({
       url: committed,
       season,
@@ -109,21 +108,31 @@ export default function App() {
       bannerColor,
     });
 
-    const shareUrl = `${window.location.origin}${window.location.pathname}#z=${packed}`;
+    const fullShareUrl = `${window.location.origin}${window.location.pathname}#z=${packed}`;
 
-    const done = () => {
-      setCopied(true);
-      window.clearTimeout(copyTimer.current);
-      copyTimer.current = window.setTimeout(() => setCopied(false), 1800);
-      notify("Shortened link copied");
-    };
+    try {
+      const res = await fetch(
+        `https://tinyurl.com/api-create.php?url=${encodeURIComponent(fullShareUrl)}`
+      );
+      const shortUrl = await res.text();
 
-    if (navigator.clipboard?.writeText) {
-      navigator.clipboard.writeText(shareUrl).then(done).catch(() => {
-        notify("Copy blocked — grab URL from address bar");
-      });
-    } else {
-      notify("Copy not available — grab URL from address bar");
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(shortUrl);
+        setCopied(true);
+        window.clearTimeout(copyTimer.current);
+        copyTimer.current = window.setTimeout(() => setCopied(false), 1800);
+        notify("Shortened link copied!");
+      }
+    } catch {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(fullShareUrl);
+        setCopied(true);
+        window.clearTimeout(copyTimer.current);
+        copyTimer.current = window.setTimeout(() => setCopied(false), 1800);
+        notify("Share link copied!");
+      } else {
+        notify("Copy not available — grab URL from address bar");
+      }
     }
   }, [
     committed,
