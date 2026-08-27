@@ -128,6 +128,8 @@ export default function Scene({
   seed,
   qr,
   rain = false,
+  bannerText = "Bryan R. Cañaveral",
+  bannerColor = "#e11d48",
   onToggle,
 }: {
   grid: QRGrid;
@@ -135,6 +137,8 @@ export default function Scene({
   seed: number;
   qr: boolean;
   rain?: boolean;
+  bannerText?: string;
+  bannerColor?: string;
   onToggle: () => void;
 }) {
   const rig = useRef<RigState>({
@@ -239,7 +243,6 @@ export default function Scene({
         <Rig rig={rig} qr={qr} total={grid.total} palette={palette} hemi={hemi} />
         <fog attach="fog" args={[palette.fog, 70, 320]} />
 
-        {/* Lighting */}
         <hemisphereLight
           ref={hemi}
           args={[palette.hemiSky, palette.hemiGround, rain ? 0.8 : 1.05]}
@@ -264,12 +267,10 @@ export default function Scene({
           color="#cfe2ff"
         />
 
-        {/* Core Diorama & Tree */}
         <Ground grid={grid} palette={palette} seed={seed} />
         <Covers grid={grid} zone={zone} palette={palette} seed={seed} />
         <Tree seed={seed} palette={palette} grid={grid} zone={zone} />
 
-        {/* Atmosphere */}
         <Birds
           orbit={Math.min(zone.n * 0.6 + 3.5, grid.total * 0.42)}
           alt={14 + zone.n * 0.25}
@@ -283,11 +284,14 @@ export default function Scene({
         <Clouds total={grid.total} />
         {rain && <Rain total={grid.total} />}
 
-        {/* Helicopter towing "Bryan R. Cañaveral" */}
-        <Helicopter orbit={grid.total * 0.62} alt={16} />
+        <Helicopter
+          orbit={grid.total * 0.62}
+          alt={16}
+          bannerText={bannerText}
+          bannerColor={bannerColor}
+        />
 
-        {/* Hot Air Balloon (Motionless over tree top) & Slow Outer Blimp */}
-        <HotAirBalloon offsetX={1.5} offsetZ={-2.2} alt={21} />
+        <HotAirBalloon offsetX={4.5} offsetZ={3.5} alt={96} />
         <Blimp orbit={grid.total * 1.05} alt={24} speed={0.045} />
       </Canvas>
     </div>

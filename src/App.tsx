@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ExternalLink, Flower2, QrCode, Lock } from "lucide-react";
+import { ExternalLink, Flower2, Lock, QrCode } from "lucide-react";
 import Scene from "./three/Scene";
 import Controls from "./components/Controls";
 import PinLogin from "./components/PinLogin";
@@ -23,10 +23,11 @@ export default function App() {
   const [qr, setQr] = useState(false);
   const [toast, setToast] = useState<{ id: number; msg: string } | null>(null);
   const [copied, setCopied] = useState(false);
-  
-  // Auth state
+
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [bannerText, setBannerText] = useState("Bryan R. Cañaveral");
+  const [bannerColor, setBannerColor] = useState("#e11d48");
 
   const isMinimalView = useMemo(() => {
     if (typeof window === "undefined") return false;
@@ -145,7 +146,6 @@ export default function App() {
 
   return (
     <div className="relative h-full w-full overflow-hidden font-sans text-stone-900 select-none">
-      {/* Seasonal Wallpaper Backdrop */}
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
         <AnimatePresence>
           <motion.div
@@ -190,7 +190,16 @@ export default function App() {
       </div>
 
       <Watermark label={palette.label} />
-      <Scene grid={activeGrid} palette={palette} seed={seed} qr={qr} rain={rain} onToggle={toggle} />
+      <Scene
+        grid={activeGrid}
+        palette={palette}
+        seed={seed}
+        qr={qr}
+        rain={rain}
+        bannerText={bannerText}
+        bannerColor={bannerColor}
+        onToggle={toggle}
+      />
 
       <div
         className="pointer-events-none fixed inset-0 z-20"
@@ -200,7 +209,6 @@ export default function App() {
       />
       <div className="noise pointer-events-none fixed inset-0 z-20 opacity-25" />
 
-      {/* PIN Security Modal */}
       <AnimatePresence>
         {showLoginModal && (
           <PinLogin
@@ -257,7 +265,6 @@ export default function App() {
           <div className="pointer-events-none fixed inset-x-0 bottom-4 z-40 flex flex-col items-center gap-3 sm:bottom-5">
             <Hint qr={qr} />
 
-            {/* If Authenticated: Render Controls; Otherwise Render Unlock Button */}
             {isAuthenticated ? (
               <Controls
                 url={url}
@@ -290,6 +297,10 @@ export default function App() {
                 onToggle={toggle}
                 onOpenLink={handleOpenLink}
                 gridLabel={`${activeGrid.size}×${activeGrid.size}`}
+                bannerText={bannerText}
+                onBannerText={setBannerText}
+                bannerColor={bannerColor}
+                onBannerColor={setBannerColor}
               />
             ) : (
               <motion.button

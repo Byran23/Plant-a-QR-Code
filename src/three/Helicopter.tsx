@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { morph, smooth01, clamp01, easeOutBack } from "./shared";
 
-function createBannerTextures(text: string) {
+function createBannerTextures(text: string, primaryColor: string = "#e11d48") {
   const canvasFront = document.createElement("canvas");
   const canvasBack = document.createElement("canvas");
   canvasFront.width = 2048;
@@ -15,7 +15,6 @@ function createBannerTextures(text: string) {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    // Crisp white background with subtle warm gradient
     const bgGrad = ctx.createLinearGradient(0, 0, 2048, 0);
     bgGrad.addColorStop(0, "#ffffff");
     bgGrad.addColorStop(0.5, "#fffbfb");
@@ -23,12 +22,11 @@ function createBannerTextures(text: string) {
     ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, 2048, 512);
 
-    // Dynamic ribbon border stripes
-    ctx.fillStyle = "#e11d48"; // Crimson Red
+    ctx.fillStyle = primaryColor;
     ctx.fillRect(0, 0, 2048, 26);
     ctx.fillRect(0, 486, 2048, 26);
 
-    ctx.fillStyle = "#f59e0b"; // Gold Trim
+    ctx.fillStyle = "#f59e0b";
     ctx.fillRect(0, 26, 2048, 12);
     ctx.fillRect(0, 474, 2048, 12);
 
@@ -37,17 +35,14 @@ function createBannerTextures(text: string) {
       ctx.scale(-1, 1);
     }
 
-    // Bold, solid filled Roboto typography
-    ctx.font = "900 156px 'Roboto', sans-serif";
+    ctx.font = "900 152px 'Roboto', sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
 
-    // Text drop shadow for contrast against sky
-    ctx.fillStyle = "rgba(159, 18, 57, 0.18)";
+    ctx.fillStyle = "rgba(0, 0, 0, 0.14)";
     ctx.fillText(text, 1028, 262);
 
-    // Deep crimson letter fill
-    ctx.fillStyle = "#be123c";
+    ctx.fillStyle = primaryColor;
     ctx.fillText(text, 1024, 256);
   };
 
@@ -72,9 +67,13 @@ function createBannerTextures(text: string) {
 export default function Helicopter({
   orbit = 16,
   alt = 18,
+  bannerText = "Bryan R. Cañaveral",
+  bannerColor = "#e11d48",
 }: {
   orbit?: number;
   alt?: number;
+  bannerText?: string;
+  bannerColor?: string;
 }) {
   const heliGroup = useRef<THREE.Group>(null);
   const mainRotorRef = useRef<THREE.Group>(null);
@@ -85,7 +84,6 @@ export default function Helicopter({
   const strobeLightRef = useRef<THREE.PointLight>(null);
   const intro = useRef(0);
 
-  // Geometries
   const boxGeo = useMemo(() => new THREE.BoxGeometry(1, 1, 1), []);
   const sphereGeo = useMemo(() => new THREE.SphereGeometry(1, 18, 18), []);
   const cylinderGeo = useMemo(() => new THREE.CylinderGeometry(1, 1, 1, 16), []);
@@ -93,14 +91,13 @@ export default function Helicopter({
   const bannerGeo = useMemo(() => new THREE.PlaneGeometry(11.5, 2.8, 36, 6), []);
 
   const { texFront, texBack } = useMemo(
-    () => createBannerTextures("Bryan R. Cañaveral"),
-    [],
+    () => createBannerTextures(bannerText || "Bryan R. Cañaveral", bannerColor || "#e11d48"),
+    [bannerText, bannerColor],
   );
 
-  // Materials
-  const liveryRedMat = useMemo(
-    () => new THREE.MeshStandardMaterial({ color: "#e11d48", roughness: 0.3, metalness: 0.2 }),
-    [],
+  const liveryColorMat = useMemo(
+    () => new THREE.MeshStandardMaterial({ color: bannerColor, roughness: 0.3, metalness: 0.2 }),
+    [bannerColor],
   );
   const liveryWhiteMat = useMemo(
     () => new THREE.MeshStandardMaterial({ color: "#f8fafc", roughness: 0.35, metalness: 0.1 }),
@@ -180,7 +177,7 @@ export default function Helicopter({
       bannerGeo.dispose();
       texFront.dispose();
       texBack.dispose();
-      liveryRedMat.dispose();
+      liveryColorMat.dispose();
       liveryWhiteMat.dispose();
       cockpitGlassMat.dispose();
       metalMat.dispose();
@@ -202,7 +199,7 @@ export default function Helicopter({
     bannerGeo,
     texFront,
     texBack,
-    liveryRedMat,
+    liveryColorMat,
     liveryWhiteMat,
     cockpitGlassMat,
     metalMat,
@@ -227,7 +224,6 @@ export default function Helicopter({
     const grow = easeOutBack(clamp01(intro.current / 0.7));
     const scale = vis * grow;
 
-    // Flight Orbit Mechanics
     const heli = heliGroup.current;
     if (heli) {
       const flightSpeed = 0.38;
@@ -240,7 +236,6 @@ export default function Helicopter({
 
       heli.position.set(x, y, z);
 
-      // Tangent direction along orbit
       const forwardX = -Math.sin(angle);
       const forwardZ = Math.cos(angle);
       const tangent = new THREE.Vector3(forwardX, 0, forwardZ).normalize();
@@ -250,7 +245,6 @@ export default function Helicopter({
         tangent,
       );
 
-      // Aerodynamic pitch down (0.08 rad) and inward bank roll (0.16 rad)
       const bankEuler = new THREE.Euler(0.08, 0, 0.16, "ZYX");
       quat.multiply(new THREE.Quaternion().setFromEuler(bankEuler));
 
@@ -259,20 +253,17 @@ export default function Helicopter({
       heli.visible = scale > 0.02;
     }
 
-    // High Speed Rotor Animations
     if (mainRotorRef.current) mainRotorRef.current.rotation.y += dt * 44;
     if (mainRotorBlurRef.current) mainRotorBlurRef.current.rotation.z += dt * 25;
     if (tailRotorRef.current) tailRotorRef.current.rotation.x += dt * 48;
 
-    // Intermittent Tail Strobe Flash
     if (strobeLightRef.current) {
       strobeLightRef.current.intensity = Math.sin(t * 12) > 0.75 ? 2.5 : 0;
     }
 
-    // Aerodynamic Banner Waves
     const posAttr = bannerGeo.attributes.position;
     for (let i = 0; i < posAttr.count; i++) {
-      const u = (posAttr.getX(i) + 5.75) / 11.5; // 0 (tether) to 1 (tail end)
+      const u = (posAttr.getX(i) + 5.75) / 11.5;
       const wave = Math.sin(t * 6.2 - u * 4.6) * (0.02 + u * 0.22);
       posAttr.setZ(i, wave);
     }
@@ -281,13 +272,9 @@ export default function Helicopter({
 
   return (
     <group ref={heliGroup}>
-      {/* --- Main Fuselage Body --- */}
-      {/* Lower Belly */}
       <mesh geometry={sphereGeo} material={liveryWhiteMat} position={[0, -0.1, 0.4]} scale={[0.68, 0.58, 1.25]} />
-      {/* Upper Cabin */}
-      <mesh geometry={sphereGeo} material={liveryRedMat} position={[0, 0.12, 0.35]} scale={[0.72, 0.65, 1.2]} />
+      <mesh geometry={sphereGeo} material={liveryColorMat} position={[0, 0.12, 0.35]} scale={[0.72, 0.65, 1.2]} />
 
-      {/* Aerodynamic Cockpit Glass */}
       <mesh
         geometry={sphereGeo}
         material={cockpitGlassMat}
@@ -295,7 +282,6 @@ export default function Helicopter({
         scale={[0.56, 0.5, 0.58]}
       />
 
-      {/* Dual Turbine Engine Cowlings */}
       <mesh
         geometry={cylinderGeo}
         material={metalMat}
@@ -311,7 +297,6 @@ export default function Helicopter({
         scale={[0.13, 0.7, 0.13]}
       />
 
-      {/* Sleek Golden Accent Side Decal */}
       <mesh
         geometry={boxGeo}
         material={goldAccentMat}
@@ -319,7 +304,6 @@ export default function Helicopter({
         scale={[0.74, 0.08, 1.35]}
       />
 
-      {/* Nose Searchlight */}
       <mesh
         geometry={cylinderGeo}
         material={searchlightMat}
@@ -328,24 +312,20 @@ export default function Helicopter({
         scale={[0.1, 0.08, 0.1]}
       />
 
-      {/* --- Tail Assembly --- */}
-      {/* Tail Boom */}
       <mesh
         geometry={cylinderGeo}
-        material={liveryRedMat}
+        material={liveryColorMat}
         position={[0, 0.14, -1.35]}
         rotation={[Math.PI / 2, 0, 0]}
         scale={[0.15, 1.85, 0.15]}
       />
 
-      {/* Vertical Stabilizer Tail Fin */}
       <mesh
         geometry={boxGeo}
         material={liveryWhiteMat}
         position={[0, 0.46, -2.22]}
         scale={[0.06, 0.72, 0.44]}
       />
-      {/* Horizontal Tail Stabilizer */}
       <mesh
         geometry={boxGeo}
         material={goldAccentMat}
@@ -353,11 +333,9 @@ export default function Helicopter({
         scale={[0.75, 0.03, 0.2]}
       />
 
-      {/* Tail Navigation Strobe */}
       <pointLight ref={strobeLightRef} color="#ffffff" distance={4} decay={2} position={[0, 0.84, -2.25]} />
       <mesh geometry={sphereGeo} material={searchlightMat} position={[0, 0.82, -2.25]} scale={[0.04, 0.04, 0.04]} />
 
-      {/* Tail Rotor */}
       <group position={[0.11, 0.48, -2.28]} ref={tailRotorRef}>
         <mesh geometry={cylinderGeo} material={metalMat} rotation={[0, 0, Math.PI / 2]} scale={[0.06, 0.14, 0.06]} />
         <mesh geometry={boxGeo} material={rotorBladeMat} scale={[0.02, 0.72, 0.08]} />
@@ -365,8 +343,6 @@ export default function Helicopter({
         <mesh geometry={boxGeo} material={goldAccentMat} scale={[0.02, 0.14, 0.09]} position={[0, -0.3, 0]} />
       </group>
 
-      {/* --- Main Rotor Assembly --- */}
-      {/* Rotor Mast Shaft & Swashplate */}
       <mesh
         geometry={cylinderGeo}
         material={metalMat}
@@ -380,15 +356,12 @@ export default function Helicopter({
         scale={[0.22, 0.06, 0.22]}
       />
 
-      {/* Spinning Rotor Blades */}
       <group position={[0, 1.04, 0.35]} ref={mainRotorRef}>
         <mesh geometry={cylinderGeo} material={metalMat} scale={[0.24, 0.09, 0.24]} />
-        {/* Quad Blade Configuration */}
         <mesh geometry={boxGeo} material={rotorBladeMat} scale={[4.5, 0.025, 0.16]} />
         <mesh geometry={boxGeo} material={rotorBladeMat} rotation={[0, Math.PI / 2, 0]} scale={[4.5, 0.025, 0.16]} />
       </group>
 
-      {/* High Speed Rotor Blur Disk */}
       <mesh
         ref={mainRotorBlurRef}
         geometry={discGeo}
@@ -397,26 +370,20 @@ export default function Helicopter({
         rotation={[-Math.PI / 2, 0, 0]}
       />
 
-      {/* --- Landing Skids --- */}
       <group position={[0, -0.66, 0.35]}>
-        {/* Left / Right Skids with Curved Tips */}
         <mesh geometry={cylinderGeo} material={metalMat} position={[-0.56, 0, 0]} rotation={[Math.PI / 2, 0, 0]} scale={[0.045, 2.1, 0.045]} />
         <mesh geometry={cylinderGeo} material={metalMat} position={[0.56, 0, 0]} rotation={[Math.PI / 2, 0, 0]} scale={[0.045, 2.1, 0.045]} />
         
-        {/* Skid Struts */}
         <mesh geometry={cylinderGeo} material={metalMat} position={[-0.32, 0.26, 0.42]} scale={[0.035, 0.48, 0.035]} />
         <mesh geometry={cylinderGeo} material={metalMat} position={[0.32, 0.26, 0.42]} scale={[0.035, 0.48, 0.035]} />
         <mesh geometry={cylinderGeo} material={metalMat} position={[-0.32, 0.26, -0.38]} scale={[0.035, 0.48, 0.035]} />
         <mesh geometry={cylinderGeo} material={metalMat} position={[0.32, 0.26, -0.38]} scale={[0.035, 0.48, 0.035]} />
 
-        {/* Port (Red) & Starboard (Green) Navigation Beacons */}
         <mesh geometry={sphereGeo} material={navRedMat} position={[-0.58, 0.06, 0.9]} scale={[0.045, 0.045, 0.045]} />
         <mesh geometry={sphereGeo} material={navGreenMat} position={[0.58, 0.06, 0.9]} scale={[0.045, 0.045, 0.045]} />
       </group>
 
-      {/* --- Trailing Tow Line & Premium Banner --- */}
       <group position={[0, -0.2, -2.25]}>
-        {/* Upper & Lower Tow Cables */}
         <mesh
           geometry={cylinderGeo}
           material={cableMat}
@@ -432,7 +399,6 @@ export default function Helicopter({
           scale={[0.02, 2.1, 0.02]}
         />
 
-        {/* Dual-Sided "Bryan R. Cañaveral" Banner */}
         <group position={[0, -0.62, -7.4]} rotation={[0, -Math.PI / 2, 0]}>
           <mesh ref={frontBannerMeshRef} geometry={bannerGeo} material={bannerFrontMat} />
           <mesh ref={backBannerMeshRef} geometry={bannerGeo} material={bannerBackMat} />
