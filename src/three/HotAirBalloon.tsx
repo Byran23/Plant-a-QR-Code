@@ -31,7 +31,7 @@ function createBalloonTexture() {
       ctx.fillStyle = stripes[i];
       ctx.fillRect(i * stripeW, 0, stripeW, canvas.height);
 
-      // Shadowed vertical gores / seams for 3D depth
+      // Shadowed vertical seams for 3D depth
       ctx.fillStyle = "rgba(0, 0, 0, 0.12)";
       ctx.fillRect(i * stripeW, 0, 4, canvas.height);
       ctx.fillRect((i + 1) * stripeW - 4, 0, 4, canvas.height);
@@ -50,27 +50,23 @@ function createBalloonTexture() {
   return tex;
 }
 
-// Generates an authentic hot air balloon teardrop profile via LatheGeometry
+// Authentic aerodynamic teardrop profile via LatheGeometry
 function createBalloonEnvelopeGeometry() {
   const points: THREE.Vector2[] = [];
   const segments = 40;
 
-  // Real aerodynamic profile: Bulbous dome tapering into a slim conical throat
   for (let i = 0; i <= segments; i++) {
-    const t = i / segments; // 0 (bottom throat) to 1 (top crown)
-    const y = -1.6 + t * 4.4; // Total height = 4.4 units
+    const t = i / segments; // 0 (throat) to 1 (crown)
+    const y = -1.6 + t * 4.4;
 
     let radius = 0;
     if (t < 0.35) {
-      // Conical lower throat opening
       const u = t / 0.35;
       radius = 0.48 + u * 1.35;
     } else if (t < 0.8) {
-      // Swelling mid-belly
       const u = (t - 0.35) / 0.45;
-      radius = 1.83 + Math.sin(u * Math.PI * 0.5) * 0.42; // Peaks at ~2.25
+      radius = 1.83 + Math.sin(u * Math.PI * 0.5) * 0.42;
     } else {
-      // Rounded top crown cap
       const u = (t - 0.8) / 0.2;
       radius = 2.25 * Math.cos(u * Math.PI * 0.5);
     }
@@ -84,7 +80,7 @@ function createBalloonEnvelopeGeometry() {
 export default function HotAirBalloon({
   offsetX = 1.5,
   offsetZ = -2.2,
-  alt = 21,
+  alt = 26.5, // Lifted higher above the tree canopy
 }: {
   offsetX?: number;
   offsetZ?: number;
@@ -120,7 +116,7 @@ export default function HotAirBalloon({
   const wickerMat = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
-        color: "#92400e", // Natural wicker
+        color: "#92400e",
         roughness: 0.95,
         metalness: 0,
       }),
@@ -210,16 +206,24 @@ export default function HotAirBalloon({
 
     const g = groupRef.current;
     if (g) {
-      // Organic, motionless hovering above the canopy
-      const driftX = offsetX + Math.sin(t * 0.12) * 0.28;
-      const driftZ = offsetZ + Math.cos(t * 0.1) * 0.28;
-      const driftY = alt + Math.sin(t * 0.4) * 0.22;
+      // Compound multi-frequency sinusoids for random, non-repeating slow vertical draft
+      const verticalFloat =
+        Math.sin(t * 0.42) * 0.75 +
+        Math.sin(t * 0.19 + 1.2) * 0.45 +
+        Math.cos(t * 0.07 + 2.5) * 0.35;
+
+      // Gentle horizontal air currents
+      const driftX = offsetX + Math.sin(t * 0.14) * 0.4 + Math.cos(t * 0.06) * 0.2;
+      const driftZ = offsetZ + Math.cos(t * 0.11) * 0.4 + Math.sin(t * 0.05) * 0.2;
+      const driftY = alt + verticalFloat;
 
       g.position.set(driftX, driftY, driftZ);
+
+      // Subtle aerodynamic sway
       g.rotation.set(
-        Math.sin(t * 0.25) * 0.015,
-        t * 0.018,
-        Math.cos(t * 0.2) * 0.015,
+        Math.sin(t * 0.22) * 0.025 + Math.cos(t * 0.11) * 0.015,
+        t * 0.015,
+        Math.cos(t * 0.18) * 0.025 + Math.sin(t * 0.09) * 0.015,
       );
       g.scale.setScalar(Math.max(0.0001, 1.08 * scale));
       g.visible = scale > 0.02;
@@ -245,7 +249,7 @@ export default function HotAirBalloon({
         castShadow
       />
 
-      {/* Reinforced Throat Collar Ring */}
+      {/* Throat Collar Ring */}
       <mesh
         geometry={collarGeo}
         material={cableMat}
