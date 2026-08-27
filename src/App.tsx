@@ -140,8 +140,8 @@ export default function App() {
 
   return (
     <div className="relative h-full w-full overflow-hidden font-sans text-stone-900 select-none">
-      {/* Dynamic Wallpaper Backdrop */}
-      <div className="fixed inset-0 z-0 pointer-events-none">
+      {/* Dynamic Seasonal Wallpaper Backdrop */}
+      <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
         <AnimatePresence>
           <motion.div
             key={palette.baseId + palette.sky[0]}
@@ -155,21 +155,43 @@ export default function App() {
             }}
           />
         </AnimatePresence>
-        
-        {/* Soft Radial Center Lighting */}
+
+        {/* Radiant Atmospheric Sun / Glow Orb */}
         <div
-          className="absolute inset-0"
+          className="absolute left-1/2 top-[22%] h-[420px] w-[420px] -translate-x-1/2 -translate-y-1/2 rounded-full blur-3xl opacity-80 transition-all duration-1000"
+          style={{ background: palette.sunGlow }}
+        />
+        <div
+          className="absolute inset-0 transition-all duration-1000"
           style={{
             background: `radial-gradient(65% 55% at 50% 36%, ${palette.glow} 0%, transparent 80%)`,
-            transition: "background 900ms ease-in-out",
           }}
         />
+
+        {/* Distant Mountain Silhouettes */}
+        <svg
+          className="absolute inset-x-0 bottom-0 w-full h-[42vh] opacity-90 transition-all duration-1000"
+          viewBox="0 0 1440 420"
+          preserveAspectRatio="none"
+          fill="none"
+        >
+          {/* Far Ridge */}
+          <path
+            d="M0,260 L120,220 L280,270 L460,180 L620,240 L840,160 L1020,230 L1240,170 L1440,240 L1440,420 L0,420 Z"
+            fill={palette.ridgeFar}
+          />
+          {/* Near Rolling Foothills */}
+          <path
+            d="M0,320 Q320,240 640,300 T1440,280 L1440,420 L0,420 Z"
+            fill={palette.ridgeNear}
+          />
+        </svg>
       </div>
 
       <Watermark label={palette.label} />
       <Scene grid={activeGrid} palette={palette} seed={seed} qr={qr} rain={rain} onToggle={toggle} />
 
-      {/* Screen Vignette */}
+      {/* Screen Edge Vignette */}
       <div
         className="pointer-events-none fixed inset-0 z-20"
         style={{

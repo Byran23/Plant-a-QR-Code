@@ -8,8 +8,12 @@ export interface Palette {
   label: string;
   /** CSS sky gradient (behind the transparent canvas) */
   sky: [string, string];
-  /** Soft radial glow tint */
+  /** Radial sun/glow position & tint */
   glow: string;
+  sunGlow: string;
+  /** 2D Vector mountain ridge colors for the wallpaper backdrop */
+  ridgeFar: string;
+  ridgeNear: string;
   fog: string;
   hemiSky: string;
   hemiGround: string;
@@ -26,7 +30,7 @@ export interface Palette {
   rock: string;
   foliageDensity: number;
   decorDensity: number;
-  /** Flat QR mode tints — dark ink / light paper */
+  /** Flat QR mode tints */
   qrDark: string;
   qrLight: string;
   finderDark: string;
@@ -43,8 +47,11 @@ export const SEASONS: Palette[] = [
     id: "spring",
     baseId: "spring",
     label: "Sakura",
-    sky: ["#f9f3ea", "#f5ebec"],
-    glow: "rgba(255, 183, 200, 0.4)",
+    sky: ["#fbe9ee", "#edd5dc"],
+    glow: "rgba(255, 183, 200, 0.45)",
+    sunGlow: "rgba(255, 230, 235, 0.9)",
+    ridgeFar: "rgba(224, 187, 198, 0.38)",
+    ridgeNear: "rgba(209, 168, 180, 0.45)",
     fog: "#f5ece6",
     hemiSky: "#fff0f3",
     hemiGround: "#e8ded2",
@@ -72,8 +79,11 @@ export const SEASONS: Palette[] = [
     id: "summer",
     baseId: "summer",
     label: "Summer",
-    sky: ["#eef8ff", "#e0f2fe"],
-    glow: "rgba(255, 240, 173, 0.4)",
+    sky: ["#bfe3f7", "#e1f3fd"],
+    glow: "rgba(255, 226, 130, 0.42)",
+    sunGlow: "rgba(255, 248, 204, 0.95)",
+    ridgeFar: "rgba(142, 196, 228, 0.42)",
+    ridgeNear: "rgba(102, 172, 212, 0.48)",
     fog: "#e2f0f9",
     hemiSky: "#d6efff",
     hemiGround: "#a3977c",
@@ -97,8 +107,11 @@ export const SEASONS: Palette[] = [
     id: "autumn",
     baseId: "autumn",
     label: "Autumn",
-    sky: ["#fff4e6", "#fcefe3"],
-    glow: "rgba(255, 173, 92, 0.35)",
+    sky: ["#fae0c9", "#ebd0b9"],
+    glow: "rgba(249, 115, 22, 0.35)",
+    sunGlow: "rgba(255, 237, 213, 0.9)",
+    ridgeFar: "rgba(209, 150, 115, 0.4)",
+    ridgeNear: "rgba(184, 117, 78, 0.48)",
     fog: "#f6e2cd",
     hemiSky: "#ffe8c9",
     hemiGround: "#8f7a5c",
@@ -122,8 +135,11 @@ export const SEASONS: Palette[] = [
     id: "winter",
     baseId: "winter",
     label: "Winter",
-    sky: ["#f1f5fa", "#e8edf5"],
-    glow: "rgba(214, 231, 255, 0.4)",
+    sky: ["#e1ecf7", "#cde0f1"],
+    glow: "rgba(186, 217, 250, 0.45)",
+    sunGlow: "rgba(255, 255, 255, 0.95)",
+    ridgeFar: "rgba(176, 200, 224, 0.45)",
+    ridgeNear: "rgba(148, 178, 207, 0.52)",
     fog: "#dde8f2",
     hemiSky: "#e8f0fb",
     hemiGround: "#8b95a8",
