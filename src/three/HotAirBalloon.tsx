@@ -1,15 +1,14 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { morph, smooth01 } from "./shared";
 
-const LOGO_URL = "https://i.imgur.com/1xINYng.png";
+const LOGO_SRC = "https://i.imgur.com/1xINYng.png";
 
-// 12-stripe vibrant rainbow canvas texture
-function createBalloonTexture() {
+function createBalloonCanvasTexture(logoImage: HTMLImageElement | null) {
   const canvas = document.createElement("canvas");
-  canvas.width = 1536;
-  canvas.height = 768;
+  canvas.width = 2048;
+  canvas.height = 1024;
   const ctx = canvas.getContext("2d");
 
   if (ctx) {
@@ -29,33 +28,80 @@ function createBalloonTexture() {
     ];
 
     const stripeW = canvas.width / stripes.length;
+
+    // 1. Base Vertical Stripes
     for (let i = 0; i < stripes.length; i++) {
       ctx.fillStyle = stripes[i];
       ctx.fillRect(i * stripeW, 0, stripeW, canvas.height);
 
-      // Shadowed vertical seams for depth
+      // Shadowed vertical seam lines
       ctx.fillStyle = "rgba(0, 0, 0, 0.12)";
       ctx.fillRect(i * stripeW, 0, 4, canvas.height);
       ctx.fillRect((i + 1) * stripeW - 4, 0, 4, canvas.height);
+    }
 
-      // Horizontal decorative accent bands
-      ctx.fillStyle = "rgba(255, 255, 255, 0.22)";
-      ctx.fillRect(i * stripeW, canvas.height * 0.38, stripeW, 24);
-      ctx.fillRect(i * stripeW, canvas.height * 0.44, stripeW, 14);
+    // 2. Horizontal Accent Bands
+    ctx.fillStyle = "rgba(255, 255, 255, 0.28)";
+    ctx.fillRect(0, canvas.height * 0.46, canvas.width, 18);
+    ctx.fillRect(0, canvas.height * 0.52, canvas.width, 10);
+
+    // 3. Gold Trim Ring Accent
+    ctx.fillStyle = "#f59e0b";
+    ctx.fillRect(0, canvas.height * 0.44, canvas.width, 6);
+    ctx.fillRect(0, canvas.height * 0.54, canvas.width, 6);
+
+    // 4. Quad Logo Emblem Decals projected directly onto the canvas texture
+    if (logoImage && logoImage.complete && logoImage.naturalWidth > 0) {
+      const badgeCount = 4;
+      const badgeDiameter = 220;
+      const badgeY = canvas.height * 0.28; // Positioned on upper bulbous crown
+
+      for (let i = 0; i < badgeCount; i++) {
+        const badgeX = (i + 0.5) * (canvas.width / badgeCount);
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(badgeX, badgeY, badgeDiameter / 2, 0, Math.PI * 2);
+        ctx.closePath();
+
+        // White circular background
+        ctx.fillStyle = "#ffffff";
+        ctx.shadowColor = "rgba(0, 0, 0, 0.25)";
+        ctx.shadowBlur = 14;
+        ctx.fill();
+
+        // Gold outer ring border
+        ctx.lineWidth = 10;
+        ctx.strokeStyle = "#f59e0b";
+        ctx.stroke();
+
+        // Clip and paint the logo image
+        ctx.clip();
+        const pad = 18;
+        ctx.drawImage(
+          logoImage,
+          badgeX - badgeDiameter / 2 + pad,
+          badgeY - badgeDiameter / 2 + pad,
+          badgeDiameter - pad * 2,
+          badgeDiameter - pad * 2,
+        );
+        ctx.restore();
+      }
     }
   }
 
   const tex = new THREE.CanvasTexture(canvas);
   tex.wrapS = THREE.RepeatWrapping;
   tex.wrapT = THREE.ClampToEdgeWrapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
   tex.needsUpdate = true;
   return tex;
 }
 
-// Authentic teardrop balloon envelope geometry
+// Authentic smooth teardrop envelope geometry
 function createBalloonEnvelopeGeometry() {
   const points: THREE.Vector2[] = [];
-  const segments = 40;
+  const segments = 56;
 
   for (let i = 0; i <= segments; i++) {
     const t = i / segments; // 0 (throat) to 1 (crown)
@@ -76,7 +122,7 @@ function createBalloonEnvelopeGeometry() {
     points.push(new THREE.Vector2(Math.max(0.01, radius), y));
   }
 
-  return new THREE.LatheGeometry(points, 36);
+  return new THREE.LatheGeometry(points, 48);
 }
 
 export default function HotAirBalloon({
@@ -92,63 +138,45 @@ export default function HotAirBalloon({
   const burnerRef = useRef<THREE.PointLight>(null);
   const flameMeshRef = useRef<THREE.Mesh>(null);
 
+  const [logoImg, setLogoImg] = useState<HTMLImageElement | null>(null);
+
+  useEffect(() => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.src = LOGO_SRC;
+    img.onload = () => setLogoImg(img);
+  }, []);
+
   // Geometries
   const envelopeGeo = useMemo(() => createBalloonEnvelopeGeometry(), []);
+  const crownCapGeo = useMemo(() => new THREE.SphereGeometry(0.38, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), []);
   const collarGeo = useMemo(() => new THREE.TorusGeometry(0.5, 0.06, 12, 32), []);
   const basketGeo = useMemo(() => new THREE.BoxGeometry(0.72, 0.58, 0.72), []);
   const basketRimGeo = useMemo(() => new THREE.BoxGeometry(0.8, 0.08, 0.8), []);
   const burnerGeo = useMemo(() => new THREE.CylinderGeometry(0.14, 0.14, 0.16, 12), []);
   const flameGeo = useMemo(() => new THREE.ConeGeometry(0.12, 0.32, 8), []);
   const cableGeo = useMemo(() => new THREE.CylinderGeometry(0.012, 0.012, 1.2, 6), []);
-  const logoBadgeGeo = useMemo(() => new THREE.CircleGeometry(0.95, 32), []);
-  const badgeFrameGeo = useMemo(() => new THREE.TorusGeometry(0.97, 0.04, 12, 32), []);
 
-  // Textures & Materials
-  const balloonTex = useMemo(() => createBalloonTexture(), []);
-  const logoTex = useMemo(() => {
-    const loader = new THREE.TextureLoader();
-    loader.setCrossOrigin("anonymous");
-    const tex = loader.load(LOGO_URL);
-    tex.colorSpace = THREE.SRGBColorSpace;
-    return tex;
-  }, []);
+  // Integrated Canvas Texture with baked-in quad decals
+  const balloonTex = useMemo(() => createBalloonCanvasTexture(logoImg), [logoImg]);
 
   const balloonMat = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
         map: balloonTex,
-        roughness: 0.55,
+        roughness: 0.5,
         metalness: 0.05,
         side: THREE.DoubleSide,
       }),
     [balloonTex],
   );
 
-  const logoMat = useMemo(
-    () =>
-      new THREE.MeshBasicMaterial({
-        map: logoTex,
-        transparent: true,
-        side: THREE.DoubleSide,
-      }),
-    [logoTex],
-  );
-
-  const logoBackdropMat = useMemo(
-    () =>
-      new THREE.MeshBasicMaterial({
-        color: "#ffffff",
-        side: THREE.DoubleSide,
-      }),
-    [],
-  );
-
   const goldTrimMat = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
         color: "#f59e0b",
-        roughness: 0.3,
-        metalness: 0.7,
+        roughness: 0.25,
+        metalness: 0.75,
       }),
     [],
   );
@@ -203,19 +231,15 @@ export default function HotAirBalloon({
   useEffect(() => {
     return () => {
       envelopeGeo.dispose();
+      crownCapGeo.dispose();
       collarGeo.dispose();
       basketGeo.dispose();
       basketRimGeo.dispose();
       burnerGeo.dispose();
       flameGeo.dispose();
       cableGeo.dispose();
-      logoBadgeGeo.dispose();
-      badgeFrameGeo.dispose();
       balloonTex.dispose();
-      logoTex.dispose();
       balloonMat.dispose();
-      logoMat.dispose();
-      logoBackdropMat.dispose();
       goldTrimMat.dispose();
       wickerMat.dispose();
       wickerTrimMat.dispose();
@@ -225,19 +249,15 @@ export default function HotAirBalloon({
     };
   }, [
     envelopeGeo,
+    crownCapGeo,
     collarGeo,
     basketGeo,
     basketRimGeo,
     burnerGeo,
     flameGeo,
     cableGeo,
-    logoBadgeGeo,
-    badgeFrameGeo,
     balloonTex,
-    logoTex,
     balloonMat,
-    logoMat,
-    logoBackdropMat,
     goldTrimMat,
     wickerMat,
     wickerTrimMat,
@@ -274,7 +294,7 @@ export default function HotAirBalloon({
 
   return (
     <group ref={groupRef}>
-      {/* Balloon Envelope */}
+      {/* Balloon Envelope with embedded decals */}
       <mesh
         geometry={envelopeGeo}
         material={balloonMat}
@@ -282,19 +302,13 @@ export default function HotAirBalloon({
         castShadow
       />
 
-      {/* Top Logo Badges (Quad Placement around the upper dome) */}
-      {[0, Math.PI / 2, Math.PI, (3 * Math.PI) / 2].map((rotY, idx) => (
-        <group key={idx} rotation={[0, rotY, 0]}>
-          <group position={[0, 2.7, 1.86]} rotation={[-0.32, 0, 0]}>
-            {/* White Circular Disc Base */}
-            <mesh geometry={logoBadgeGeo} material={logoBackdropMat} position={[0, 0, -0.01]} />
-            {/* Logo Texture */}
-            <mesh geometry={logoBadgeGeo} material={logoMat} position={[0, 0, 0.01]} />
-            {/* Gold Trim Ring */}
-            <mesh geometry={badgeFrameGeo} material={goldTrimMat} position={[0, 0, 0.012]} />
-          </group>
-        </group>
-      ))}
+      {/* Gold Crown Cap Finial on Top */}
+      <mesh
+        geometry={crownCapGeo}
+        material={goldTrimMat}
+        position={[0, 4.0, 0]}
+        scale={[1.1, 0.45, 1.1]}
+      />
 
       {/* Throat Collar */}
       <mesh
@@ -322,13 +336,13 @@ export default function HotAirBalloon({
         />
       </group>
 
-      {/* 4 Corner Rigging Cables */}
+      {/* Corner Rigging Cables */}
       <mesh geometry={cableGeo} material={cableMat} position={[-0.26, -1.22, -0.26]} rotation={[-0.15, 0, 0.15]} />
       <mesh geometry={cableGeo} material={cableMat} position={[0.26, -1.22, -0.26]} rotation={[-0.15, 0, -0.15]} />
       <mesh geometry={cableGeo} material={cableMat} position={[-0.26, -1.22, 0.26]} rotation={[0.15, 0, 0.15]} />
       <mesh geometry={cableGeo} material={cableMat} position={[0.26, -1.22, 0.26]} rotation={[0.15, 0, -0.15]} />
 
-      {/* Wicker Basket */}
+      {/* Wicker Gondola Basket & Rim */}
       <group position={[0, -1.88, 0]}>
         <mesh geometry={basketGeo} material={wickerMat} castShadow />
         <mesh geometry={basketRimGeo} material={wickerTrimMat} position={[0, 0.3, 0]} />
