@@ -78,9 +78,9 @@ function createBalloonEnvelopeGeometry() {
 }
 
 export default function HotAirBalloon({
-  offsetX = 7.5,
-  offsetZ = -2.5,
-  alt = 90, // Set high in the upper sky atmosphere
+  offsetX = 4.5,
+  offsetZ = 3.5,
+  alt = 96, // Set high in the upper sky atmosphere
 }: {
   offsetX?: number;
   offsetZ?: number;
