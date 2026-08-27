@@ -16,12 +16,14 @@ export interface ShareState {
   label?: string;
   bannerText?: string;
   bannerColor?: string;
+  rain?: boolean;
 }
 
-const SEP = "\x1e"; // Record separator to keep overhead to 1 byte
+const SEP = "\x1e"; // Record separator for minimum byte overhead
 
 /**
- * Packs configuration into the smallest possible Base64 string for copying
+ * Packs all state variables into a single URL-safe string.
+ * Flags structure: `${proto}${season}${rainFlag ? 1 : 0}`
  */
 export function packState(state: ShareState): string {
   let url = (state.url || "").trim();
@@ -39,6 +41,9 @@ export function packState(state: ShareState): string {
   }
 
   const s = state.season ?? 0;
+  const rn = state.rain ? "1" : "0";
+  const flags = `${proto}${s}${rn}`;
+
   const bt = state.bannerText && state.bannerText !== "Bryan R. Cañaveral" ? state.bannerText.trim() : "";
   const lbl = state.label && state.label !== "Editable" ? state.label.trim() : "";
   const lf = state.leaf ? state.leaf.replace("#", "") : "";
@@ -46,8 +51,8 @@ export function packState(state: ShareState): string {
   const bc = state.bannerColor && state.bannerColor.toLowerCase() !== "#e11d48" ? state.bannerColor.replace("#", "") : "";
   const r = state.salt ? state.salt.toString(36) : "";
 
-  // Combine items and trim unused empty trailing elements
-  const items = [`${proto}${s}`, url, bt, lbl, lf, gd, bc, r];
+  // Combine into a compact array, trimming empty trailing elements
+  const items = [flags, url, bt, lbl, lf, gd, bc, r];
   while (items.length > 2 && items[items.length - 1] === "") {
     items.pop();
   }
@@ -74,9 +79,10 @@ export function unpackState(packed: string): Partial<ShareState> {
     const raw = decodeURIComponent(atob(base64));
     const parts = raw.split(SEP);
 
-    const flags = parts[0] || "00";
+    const flags = parts[0] || "000";
     const proto = parseInt(flags[0] || "0", 10);
-    const season = parseInt(flags.slice(1) || "0", 10);
+    const season = parseInt(flags[1] || "0", 10);
+    const rain = flags[2] === "1";
 
     let url = parts[1] || "";
     if (url) {
@@ -92,7 +98,7 @@ export function unpackState(packed: string): Partial<ShareState> {
     const bannerColor = parts[6] ? `#${parts[6]}` : undefined;
     const salt = parts[7] ? parseInt(parts[7], 36) : 0;
 
-    return { url, season, bannerText, label, leaf, ground, bannerColor, salt };
+    return { url, season, rain, bannerText, label, leaf, ground, bannerColor, salt };
   } catch {
     return {};
   }
@@ -141,6 +147,7 @@ export function readHash(): ShareState {
     return {
       url: unpacked.url,
       season: unpacked.season,
+      rain: unpacked.rain ?? false,
       leaf: unpacked.leaf ?? null,
       ground: unpacked.ground ?? null,
       salt: unpacked.salt ?? 0,
@@ -150,9 +157,13 @@ export function readHash(): ShareState {
     };
   }
 
+  // Fallback for legacy parameters
+  const rn = params.get("rn");
+
   return {
     url: params.get("u") ?? undefined,
     season: params.get("s") !== null ? Number(params.get("s")) : undefined,
+    rain: rn === "1" || rn === "true",
     leaf: params.get("lf") ? `#${params.get("lf")}` : null,
     ground: params.get("gd") ? `#${params.get("gd")}` : null,
     salt: params.get("r") !== null ? Number(params.get("r")) : 0,

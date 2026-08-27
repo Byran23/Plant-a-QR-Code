@@ -16,7 +16,7 @@ export default function App() {
   const [url, setUrl] = useState(boot.url ?? DEFAULT_URL);
   const [committed, setCommitted] = useState(boot.url ?? DEFAULT_URL);
   const [season, setSeason] = useState(boot.season ?? 0);
-  const [rain, setRain] = useState(false);
+  const [rain, setRain] = useState(boot.rain ?? false);
   const [leaf, setLeaf] = useState<string | null>(boot.leaf ?? null);
   const [groundColor, setGroundColor] = useState<string | null>(boot.ground ?? null);
   const [salt, setSalt] = useState(boot.salt);
@@ -86,6 +86,7 @@ export default function App() {
       writeHash({
         url: committed,
         season,
+        rain,
         leaf,
         ground: groundColor,
         salt,
@@ -94,12 +95,13 @@ export default function App() {
         bannerColor,
       } satisfies ShareState);
     }
-  }, [committed, season, leaf, groundColor, salt, isMinimalView, customThemeLabel, bannerText, bannerColor]);
+  }, [committed, season, rain, leaf, groundColor, salt, isMinimalView, customThemeLabel, bannerText, bannerColor]);
 
   const onCopy = useCallback(async () => {
     const packed = packState({
       url: committed,
       season,
+      rain,
       leaf,
       ground: groundColor,
       salt,
@@ -137,6 +139,7 @@ export default function App() {
   }, [
     committed,
     season,
+    rain,
     leaf,
     groundColor,
     salt,
