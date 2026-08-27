@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
-import { morph, smooth01, clamp01, easeOutBack } from "./shared";
+import { morph, smooth01 } from "./shared";
 
 // 12-stripe vibrant rainbow canvas texture
 function createBalloonTexture() {
@@ -50,13 +50,13 @@ function createBalloonTexture() {
   return tex;
 }
 
-// Generates an authentic hot air balloon teardrop profile via LatheGeometry
+// Authentic teardrop balloon envelope geometry
 function createBalloonEnvelopeGeometry() {
   const points: THREE.Vector2[] = [];
   const segments = 40;
 
   for (let i = 0; i <= segments; i++) {
-    const t = i / segments; // 0 (bottom throat) to 1 (top crown)
+    const t = i / segments; // 0 (throat) to 1 (crown)
     const y = -1.6 + t * 4.4;
 
     let radius = 0;
@@ -78,9 +78,9 @@ function createBalloonEnvelopeGeometry() {
 }
 
 export default function HotAirBalloon({
-  offsetX = 4.5,
-  offsetZ = -3.5,
-  alt = 96,
+  offsetX = 5.5,
+  offsetZ = -4.0,
+  alt = 22, // Placed high in the sky frame, safely clear of the canopy top (~13)
 }: {
   offsetX?: number;
   offsetZ?: number;
@@ -89,7 +89,6 @@ export default function HotAirBalloon({
   const groupRef = useRef<THREE.Group>(null);
   const burnerRef = useRef<THREE.PointLight>(null);
   const flameMeshRef = useRef<THREE.Mesh>(null);
-  const intro = useRef(0);
 
   // Geometries
   const envelopeGeo = useMemo(() => createBalloonEnvelopeGeometry(), []);
@@ -194,42 +193,36 @@ export default function HotAirBalloon({
     flameMat,
   ]);
 
-  useFrame((state, rawDt) => {
-    const dt = Math.min(rawDt, 0.05);
+  useFrame((state) => {
     const t = state.clock.elapsedTime;
-    intro.current = Math.min(1, intro.current + dt * 0.8);
-
     const p = morph?.p ?? 0;
     const vis = Math.max(0, 1 - smooth01(p));
-    const scale = vis; // Keep scale fully stable (no drop/grow bounce)
 
     const g = groupRef.current;
     if (g) {
-      const driftX = offsetX + Math.sin(t * 0.05) * 0.15;
-      const driftZ = offsetZ + Math.cos(t * 0.04) * 0.15;
-      const currentY = alt; // Completely fixed height
+      // Subtle atmospheric horizontal air drift with static locked altitude (no dipping/dropping)
+      const driftX = offsetX + Math.sin(t * 0.05) * 0.2;
+      const driftZ = offsetZ + Math.cos(t * 0.04) * 0.2;
 
-      g.position.set(driftX, currentY, driftZ);
+      g.position.set(driftX, alt, driftZ);
       g.rotation.set(0, t * 0.012, 0);
-      g.scale.setScalar(Math.max(0.0001, 1.35 * scale));
-      g.visible = scale > 0.02;
+      g.scale.setScalar(Math.max(0.0001, 1.25 * vis));
+      g.visible = vis > 0.02;
     }
 
-    const liftPulse = Math.max(0, Math.cos(t * 0.25));
-    const flicker = Math.sin(t * 14) * 0.25 + Math.cos(t * 22) * 0.1;
-
+    const flicker = Math.sin(t * 14) * 0.2 + Math.cos(t * 22) * 0.1;
     if (burnerRef.current) {
-      burnerRef.current.intensity = Math.max(0.4, 1.4 + liftPulse * 1.0 + flicker);
+      burnerRef.current.intensity = Math.max(0.4, 1.3 + flicker);
     }
     if (flameMeshRef.current) {
-      const fScale = 1 + liftPulse * 0.45 + flicker * 0.2;
-      flameMeshRef.current.scale.set(fScale, fScale * 1.25, fScale);
+      const fScale = 1 + flicker * 0.2;
+      flameMeshRef.current.scale.set(fScale, fScale * 1.2, fScale);
     }
   });
 
   return (
     <group ref={groupRef}>
-      {/* Teardrop Envelope */}
+      {/* Balloon Envelope */}
       <mesh
         geometry={envelopeGeo}
         material={balloonMat}
@@ -259,17 +252,17 @@ export default function HotAirBalloon({
           color="#ff7900"
           distance={6}
           decay={2}
-          intensity={1.6}
+          intensity={1.5}
         />
       </group>
 
-      {/* Corner Rigging Cables */}
+      {/* 4 Corner Rigging Cables */}
       <mesh geometry={cableGeo} material={cableMat} position={[-0.26, -1.22, -0.26]} rotation={[-0.15, 0, 0.15]} />
       <mesh geometry={cableGeo} material={cableMat} position={[0.26, -1.22, -0.26]} rotation={[-0.15, 0, -0.15]} />
       <mesh geometry={cableGeo} material={cableMat} position={[-0.26, -1.22, 0.26]} rotation={[0.15, 0, 0.15]} />
       <mesh geometry={cableGeo} material={cableMat} position={[0.26, -1.22, 0.26]} rotation={[0.15, 0, -0.15]} />
 
-      {/* Wicker Gondola Basket & Rim */}
+      {/* Wicker Basket */}
       <group position={[0, -1.88, 0]}>
         <mesh geometry={basketGeo} material={wickerMat} castShadow />
         <mesh geometry={basketRimGeo} material={wickerTrimMat} position={[0, 0.3, 0]} />
