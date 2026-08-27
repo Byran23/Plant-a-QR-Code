@@ -99,22 +99,24 @@ export default function App() {
   const onCopy = useCallback(() => {
     const params = new URLSearchParams();
 
-    // Mask the destination URL to hide raw text
+    // 1. Shorthand masked target link
     params.set("m", maskUrl(committed));
 
+    // 2. Only append non-default state variables to keep the URL ultra short
     if (season !== 0) params.set("s", String(season));
     if (leaf) params.set("lf", leaf.replace("#", ""));
     if (groundColor) params.set("gd", groundColor.replace("#", ""));
-    if (salt) params.set("r", String(salt));
+    if (salt !== 0) params.set("r", String(salt));
     if (customThemeLabel && customThemeLabel !== "Editable") {
       params.set("lbl", customThemeLabel);
     }
     if (bannerText && bannerText !== "Bryan R. Cañaveral") {
       params.set("bt", bannerText);
     }
-    if (bannerColor && bannerColor !== "#e11d48") {
+    if (bannerColor && bannerColor.toLowerCase() !== "#e11d48") {
       params.set("bc", bannerColor.replace("#", ""));
     }
+
     params.set("v", "1");
 
     const shareUrl = `${window.location.origin}${window.location.pathname}#${params.toString()}`;
@@ -123,7 +125,7 @@ export default function App() {
       setCopied(true);
       window.clearTimeout(copyTimer.current);
       copyTimer.current = window.setTimeout(() => setCopied(false), 1800);
-      notify("Share link copied — target link is masked");
+      notify("Shortened share link copied");
     };
 
     if (navigator.clipboard?.writeText) {
@@ -133,7 +135,17 @@ export default function App() {
     } else {
       notify("Copy not available — grab URL from address bar");
     }
-  }, [committed, season, leaf, groundColor, salt, customThemeLabel, bannerText, bannerColor, notify]);
+  }, [
+    committed,
+    season,
+    leaf,
+    groundColor,
+    salt,
+    customThemeLabel,
+    bannerText,
+    bannerColor,
+    notify,
+  ]);
 
   const onDownload = useCallback(() => {
     downloadPng(activeGrid.text, palette.qrDark, palette.qrLight)

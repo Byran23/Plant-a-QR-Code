@@ -19,14 +19,29 @@ export interface ShareState {
 }
 
 /**
- * URL-safe Base64 obfuscation/masking
+ * Ultra-compact URL-safe encoder/masker:
+ * Cleans http/https boilerplate where possible and strips padding.
  */
 export function maskUrl(rawUrl: string): string {
   if (!rawUrl) return "";
+  let clean = rawUrl.trim();
+
+  // Strip standard prefixes to shave characters
+  let prefixFlag = "0";
+  if (clean.startsWith("https://")) {
+    prefixFlag = "s";
+    clean = clean.slice(8);
+  } else if (clean.startsWith("http://")) {
+    prefixFlag = "h";
+    clean = clean.slice(7);
+  }
+
   try {
-    const encoded = btoa(encodeURIComponent(rawUrl));
-    // Make URL-safe and trim padding
-    return encoded.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    const b64 = btoa(encodeURIComponent(clean))
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=+$/, "");
+    return `${prefixFlag}${b64}`;
   } catch {
     return encodeURIComponent(rawUrl);
   }
@@ -34,13 +49,20 @@ export function maskUrl(rawUrl: string): string {
 
 export function unmaskUrl(masked: string): string {
   if (!masked) return "";
+  const prefixFlag = masked[0];
+  const payload = masked.slice(1);
+
+  let prefix = "";
+  if (prefixFlag === "s") prefix = "https://";
+  else if (prefixFlag === "h") prefix = "http://";
+
   try {
-    // Restore base64 standard characters
-    let base64 = masked.replace(/-/g, "+").replace(/_/g, "/");
+    let base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
     while (base64.length % 4) {
       base64 += "=";
     }
-    return decodeURIComponent(atob(base64));
+    const decoded = decodeURIComponent(atob(base64));
+    return prefix ? `${prefix}${decoded}` : decoded;
   } catch {
     try {
       return decodeURIComponent(masked);
@@ -83,14 +105,13 @@ export async function downloadPng(text: string, darkColor: string, lightColor: s
 }
 
 /**
- * Reads hash/query parameters, supporting both masked (m) and legacy (u) URLs
+ * Reads compact hash parameters
  */
 export function readHash(): ShareState {
   if (typeof window === "undefined") return { salt: 0 };
   const rawHash = window.location.hash.replace(/^#/, "");
   const params = new URLSearchParams(rawHash || window.location.search);
 
-  // Read masked link first, fallback to raw `u` if present
   const maskedParam = params.get("m");
   const rawParam = params.get("u");
   const resolvedUrl = maskedParam ? unmaskUrl(maskedParam) : rawParam ?? undefined;
@@ -116,7 +137,7 @@ export function readHash(): ShareState {
 }
 
 /**
- * Writes share parameters to URL hash using the masked parameter `m`
+ * Writes compressed parameters to the hash
  */
 export function writeHash(state: ShareState) {
   if (typeof window === "undefined") return;
