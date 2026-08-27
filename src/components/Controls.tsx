@@ -10,7 +10,6 @@ import {
   QrCode,
   RotateCcw,
   RotateCw,
-  Sparkles,
   Type,
 } from "lucide-react";
 
@@ -22,10 +21,10 @@ interface ControlsProps {
   onSeason: (i: number) => void;
   rain: boolean;
   onToggleRain: () => void;
-  isCustom: boolean;
+  isEditable: boolean;
   leafValue: string;
   groundValue: string;
-  onCustom: (key: "leaf" | "ground", val: string) => void;
+  onEditable: (key: "leaf" | "ground", val: string) => void;
   onResetColors: () => void;
   onShuffle: () => void;
   onCopy: () => void;
@@ -78,10 +77,10 @@ export default function Controls({
   onSeason,
   rain,
   onToggleRain,
-  isCustom,
+  isEditable,
   leafValue,
   groundValue,
-  onCustom,
+  onEditable,
   onResetColors,
   onShuffle,
   onCopy,
@@ -187,7 +186,7 @@ export default function Controls({
         </button>
       </div>
 
-      {/* Expanded Customization Drawer */}
+      {/* Expanded Editable Settings Drawer */}
       {open && (
         <div className="flex w-92 max-w-[94vw] max-h-[70vh] overflow-y-auto flex-col gap-3.5 rounded-3xl border border-rose-950/15 bg-white/95 p-4.5 shadow-[0_20px_45px_-10px_rgba(76,20,35,0.3)] backdrop-blur-2xl">
           {/* Target Link Input */}
@@ -245,7 +244,7 @@ export default function Controls({
                   value={bannerColor}
                   onChange={(e) => onBannerColor(e.target.value)}
                   className="h-5 w-5 cursor-pointer rounded-full border-0 bg-transparent p-0"
-                  title="Custom Banner Color"
+                  title="Editable Banner Color"
                 />
               </div>
             </div>
@@ -263,7 +262,7 @@ export default function Controls({
                   type="button"
                   onClick={() => onSeason(i)}
                   className={`rounded-xl py-1.5 text-xs font-semibold transition ${
-                    season === i && !isCustom
+                    season === i && !isEditable
                       ? "bg-rose-950 text-rose-50 shadow-sm"
                       : "bg-stone-100 text-stone-600 hover:bg-stone-200/70"
                   }`}
@@ -274,16 +273,16 @@ export default function Controls({
             </div>
           </div>
 
-          {/* Custom Petals & Ground Colors Section */}
+          {/* Editable Petals & Ground Colors Section */}
           <div className="flex flex-col gap-3 rounded-2xl border border-stone-200 bg-stone-50/70 p-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
                 <PaletteIcon className="h-3.5 w-3.5 text-stone-700" />
                 <span className="text-[10px] font-bold uppercase tracking-wider text-stone-700">
-                  Petal & Ground Customization
+                  Editable Petal & Ground Colors
                 </span>
               </div>
-              {isCustom && (
+              {isEditable && (
                 <button
                   type="button"
                   onClick={onResetColors}
@@ -295,7 +294,7 @@ export default function Controls({
               )}
             </div>
 
-            {/* Custom Petal / Blossom / Leaves Color */}
+            {/* Editable Petal / Blossom / Leaves Color */}
             <div className="flex flex-col gap-1.5">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-medium text-stone-600">Petals & Leaves</span>
@@ -304,7 +303,7 @@ export default function Controls({
                   <input
                     type="color"
                     value={leafValue}
-                    onChange={(e) => onCustom("leaf", e.target.value)}
+                    onChange={(e) => onEditable("leaf", e.target.value)}
                     className="h-5 w-5 cursor-pointer rounded-full border-0 bg-transparent p-0"
                     title="Choose Petal Color"
                   />
@@ -315,7 +314,7 @@ export default function Controls({
                   <button
                     key={c}
                     type="button"
-                    onClick={() => onCustom("leaf", c)}
+                    onClick={() => onEditable("leaf", c)}
                     style={{ backgroundColor: c }}
                     className={`h-5 w-5 rounded-full border transition-all ${
                       leafValue.toLowerCase() === c.toLowerCase()
@@ -327,7 +326,7 @@ export default function Controls({
               </div>
             </div>
 
-            {/* Custom Ground / Lawn / Patio Color */}
+            {/* Editable Ground / Lawn / Patio Color */}
             <div className="flex flex-col gap-1.5 pt-1 border-t border-stone-200/60">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-medium text-stone-600">Ground & Grass</span>
@@ -336,7 +335,7 @@ export default function Controls({
                   <input
                     type="color"
                     value={groundValue}
-                    onChange={(e) => onCustom("ground", e.target.value)}
+                    onChange={(e) => onEditable("ground", e.target.value)}
                     className="h-5 w-5 cursor-pointer rounded-full border-0 bg-transparent p-0"
                     title="Choose Ground Color"
                   />
@@ -347,7 +346,7 @@ export default function Controls({
                   <button
                     key={c}
                     type="button"
-                    onClick={() => onCustom("ground", c)}
+                    onClick={() => onEditable("ground", c)}
                     style={{ backgroundColor: c }}
                     className={`h-5 w-5 rounded-full border transition-all ${
                       groundValue.toLowerCase() === c.toLowerCase()

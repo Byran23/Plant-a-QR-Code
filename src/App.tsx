@@ -141,12 +141,11 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const isCustom = Boolean(leaf || groundColor);
+  const isEditable = Boolean(leaf || groundColor);
   const baseSeason = SEASONS[((season % 4) + 4) % 4];
 
   return (
     <div className="relative h-full w-full overflow-hidden font-sans text-stone-900 select-none">
-      {/* Seasonal Wallpaper Backdrop */}
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
         <AnimatePresence>
           <motion.div
@@ -283,10 +282,10 @@ export default function App() {
                 }}
                 rain={rain}
                 onToggleRain={toggleRain}
-                isCustom={isCustom}
+                isEditable={isEditable}
                 leafValue={leaf ?? baseSeason.foliage[1]}
                 groundValue={groundColor ?? baseSeason.grass[0]}
-                onCustom={(key, v) => (key === "leaf" ? setLeaf(v) : setGroundColor(v))}
+                onEditable={(key, v) => (key === "leaf" ? setLeaf(v) : setGroundColor(v))}
                 onResetColors={() => {
                   setLeaf(null);
                   setGroundColor(null);

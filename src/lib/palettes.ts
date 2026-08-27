@@ -3,7 +3,7 @@ import { Color } from "three";
 export type SeasonId = "spring" | "summer" | "autumn" | "winter";
 
 export interface Palette {
-  id: SeasonId | "custom";
+  id: SeasonId | "editable";
   baseId: SeasonId;
   label: string;
   /** CSS sky gradient (behind the transparent canvas) */
@@ -177,21 +177,21 @@ export function makeShades(hex: string, tweaks: Array<[number, number]>): string
 
 export function resolvePalette(
   season: number,
-  customLeaf: string | null,
-  customGround: string | null,
+  editableLeaf: string | null,
+  editableGround: string | null,
 ): Palette {
   const base = SEASONS[((season % SEASONS.length) + SEASONS.length) % SEASONS.length];
-  const isCustom = Boolean(customLeaf || customGround);
+  const isEditable = Boolean(editableLeaf || editableGround);
 
   const p: Palette = {
     ...base,
-    id: isCustom ? "custom" : base.id,
-    label: isCustom ? "Custom" : base.label,
+    id: isEditable ? "editable" : base.id,
+    label: isEditable ? "Editable" : base.label,
   };
 
-  if (customLeaf) {
-    p.qrDark = customLeaf;
-    p.foliage = makeShades(customLeaf, [
+  if (editableLeaf) {
+    p.qrDark = editableLeaf;
+    p.foliage = makeShades(editableLeaf, [
       [-0.08, 0.02],
       [0, 0],
       [0.08, -0.04],
@@ -199,9 +199,9 @@ export function resolvePalette(
     ]);
   }
 
-  if (customGround) {
-    p.qrLight = customGround;
-    p.grass = makeShades(customGround, [
+  if (editableGround) {
+    p.qrLight = editableGround;
+    p.grass = makeShades(editableGround, [
       [0, 0.03],
       [0.08, 0],
       [-0.07, 0.05],
