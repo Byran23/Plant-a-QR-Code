@@ -15,18 +15,18 @@ function createBannerTextures(text: string, primaryColor: string = "#e11d48") {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    // Swallowtail Pennant shape clipping
+    // Corrected Swallowtail: Straight leading edge on the left (x=0), V-notch trailing edge on the right (x=2048)
     ctx.save();
     ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.lineTo(2048, 0);
-    ctx.lineTo(1820, 256); // Tail inner notch
-    ctx.lineTo(2048, 512);
-    ctx.lineTo(0, 512);
+    ctx.moveTo(0, 0);                 // Top-left (leading edge)
+    ctx.lineTo(2048, 0);              // Top-right (tail top tip)
+    ctx.lineTo(1780, 256);            // Trailing inner V-notch indent
+    ctx.lineTo(2048, 512);            // Bottom-right (tail bottom tip)
+    ctx.lineTo(0, 512);               // Bottom-left (leading edge)
     ctx.closePath();
     ctx.clip();
 
-    // Warm white canvas backdrop
+    // Canvas background
     const bgGrad = ctx.createLinearGradient(0, 0, 2048, 0);
     bgGrad.addColorStop(0, "#ffffff");
     bgGrad.addColorStop(0.6, "#fffdfa");
@@ -34,7 +34,7 @@ function createBannerTextures(text: string, primaryColor: string = "#e11d48") {
     ctx.fillStyle = bgGrad;
     ctx.fill();
 
-    // Pennant border stripes
+    // Ribbon border stripes
     ctx.fillStyle = primaryColor;
     ctx.fillRect(0, 0, 2048, 28);
     ctx.fillRect(0, 484, 2048, 28);
@@ -43,27 +43,27 @@ function createBannerTextures(text: string, primaryColor: string = "#e11d48") {
     ctx.fillRect(0, 28, 2048, 12);
     ctx.fillRect(0, 472, 2048, 12);
 
-    // Leading reinforced grommet hem
+    // Reinforced leading edge grommet hem
     ctx.fillStyle = primaryColor;
-    ctx.fillRect(0, 0, 24, 512);
+    ctx.fillRect(0, 0, 26, 512);
 
     if (isBack) {
       ctx.translate(2048, 0);
       ctx.scale(-1, 1);
     }
 
-    // Bold typography
-    ctx.font = "900 144px 'Roboto', sans-serif";
+    // Typography
+    ctx.font = "900 142px 'Roboto', sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
 
     // Text drop shadow
     ctx.fillStyle = "rgba(0, 0, 0, 0.12)";
-    ctx.fillText(text, 960, 260);
+    ctx.fillText(text, 920, 260);
 
     // Text fill
     ctx.fillStyle = primaryColor;
-    ctx.fillText(text, 956, 256);
+    ctx.fillText(text, 916, 256);
 
     ctx.restore();
   };
@@ -86,23 +86,26 @@ function createBannerTextures(text: string, primaryColor: string = "#e11d48") {
   return { texFront, texBack };
 }
 
-// Generates a custom swallowtail pennant mesh geometry
-function createPennantGeometry(width = 11.5, height = 2.7, segX = 40, segY = 8) {
+// Custom pennant mesh geometry with swallowtail trailing notch
+function createPennantGeometry(width = 11.5, height = 2.7, segX = 42, segY = 8) {
   const geo = new THREE.PlaneGeometry(width, height, segX, segY);
   const pos = geo.attributes.position;
   const halfW = width / 2;
   const halfH = height / 2;
-  const notchDepth = width * 0.12;
+  const notchDepth = width * 0.14;
 
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i);
     const y = pos.getY(i);
-    const u = (x + halfW) / width; // 0 (lead) to 1 (tail)
+    // Relative position: u = 0 (leading edge connected to spreader) -> u = 1 (trailing end)
+    // PlaneGeometry default X goes from -halfW to +halfW.
+    // In local group rotation [0, -Math.PI / 2, 0], positive X in the PlaneGeometry is the trailing direction.
+    const u = (x + halfW) / width;
 
-    // Indent the rear vertex points toward center to form the swallowtail V-cut
-    if (u > 0.82) {
-      const tailFraction = (u - 0.82) / 0.18;
-      const distFromCenterY = 1 - Math.abs(y) / halfH; // 1 at middle horizontal, 0 at top/bottom edges
+    // Apply swallowtail indent at the trailing tail (u > 0.80)
+    if (u > 0.80) {
+      const tailFraction = (u - 0.80) / 0.20;
+      const distFromCenterY = 1 - Math.abs(y) / halfH; // Max indent at vertical center
       const notchIndent = tailFraction * distFromCenterY * notchDepth;
       pos.setX(i, x - notchIndent);
     }
@@ -321,11 +324,11 @@ export default function Helicopter({
       strobeLightRef.current.intensity = Math.sin(t * 12) > 0.75 ? 2.5 : 0;
     }
 
-    // Dynamic wave ripples from leading edge to tail tips
+    // Natural wave physics: 0 amplitude at leading spreader bar (u=0), rising to full flutter at the trailing swallowtail notch (u=1)
     const posAttr = bannerGeo.attributes.position;
     for (let i = 0; i < posAttr.count; i++) {
-      const u = (posAttr.getX(i) + 5.75) / 11.5; // 0 at front spreader bar, 1 at tail
-      const wave = Math.sin(t * 6.5 - u * 4.8) * (0.01 + Math.pow(u, 1.4) * 0.28);
+      const u = (posAttr.getX(i) + 5.75) / 11.5;
+      const wave = Math.sin(t * 6.5 - u * 4.8) * (0.01 + Math.pow(Math.max(0, u), 1.4) * 0.28);
       posAttr.setZ(i, wave);
     }
     posAttr.needsUpdate = true;
@@ -448,7 +451,7 @@ export default function Helicopter({
         <mesh geometry={sphereGeo} material={navGreenMat} position={[0.58, 0.06, 0.9]} scale={[0.045, 0.045, 0.045]} />
       </group>
 
-      {/* Trailing Tow Rigging & Swallowtail Banner */}
+      {/* Tow Rigging & Swallowtail Banner */}
       <group position={[0, -0.25, -2.2]}>
         {/* Main Tow Cable */}
         <mesh
@@ -459,7 +462,7 @@ export default function Helicopter({
           scale={[0.018, 2.2, 0.018]}
         />
 
-        {/* Tow Bridle Spreaders */}
+        {/* Tow Bridles */}
         <mesh
           geometry={cylinderGeo}
           material={cableMat}
@@ -475,7 +478,7 @@ export default function Helicopter({
           scale={[0.016, 1.4, 0.016]}
         />
 
-        {/* Leading Spreader Bar */}
+        {/* Rigid Leading Spreader Bar */}
         <mesh
           geometry={cylinderGeo}
           material={metalMat}
@@ -483,7 +486,7 @@ export default function Helicopter({
           scale={[0.04, 2.85, 0.04]}
         />
 
-        {/* Swallowtail Pennant Banner */}
+        {/* Swallowtail Pennant Banner (Anchored at spreader bar, tapering to trailing notch) */}
         <group position={[0, -0.8, -8.65]} rotation={[0, -Math.PI / 2, 0]}>
           <mesh ref={frontBannerMeshRef} geometry={bannerGeo} material={bannerFrontMat} />
           <mesh ref={backBannerMeshRef} geometry={bannerGeo} material={bannerBackMat} />
