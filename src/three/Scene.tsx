@@ -106,11 +106,12 @@ function Rig({
     camera.up.copy(up.normalize());
     camera.lookAt(0, r.ty, 0);
 
+    // Fog bounds calibrated so high sky elements remain visible
     const fog = scene.fog as THREE.Fog | null;
     if (fog) {
       fog.color.lerp(fogTarget.set(palette.fog), 1 - Math.exp(-dt * 3));
-      fog.near = r.dist * 1.15;
-      fog.far = r.dist * 3.4;
+      fog.near = r.dist * 1.4;
+      fog.far = r.dist * 4.8;
     }
     const h = hemi.current;
     if (h) {
@@ -241,8 +242,9 @@ export default function Scene({
         }}
       >
         <Rig rig={rig} qr={qr} total={grid.total} palette={palette} hemi={hemi} />
-        <fog attach="fog" args={[palette.fog, 70, 320]} />
+        <fog attach="fog" args={[palette.fog, 90, 500]} />
 
+        {/* Ambient & Directional Lighting */}
         <hemisphereLight
           ref={hemi}
           args={[palette.hemiSky, palette.hemiGround, rain ? 0.8 : 1.05]}
@@ -267,10 +269,12 @@ export default function Scene({
           color="#cfe2ff"
         />
 
+        {/* Core Diorama Layers */}
         <Ground grid={grid} palette={palette} seed={seed} />
         <Covers grid={grid} zone={zone} palette={palette} seed={seed} />
         <Tree seed={seed} palette={palette} grid={grid} zone={zone} />
 
+        {/* Atmosphere & Sky Elements */}
         <Birds
           orbit={Math.min(zone.n * 0.6 + 3.5, grid.total * 0.42)}
           alt={14 + zone.n * 0.25}
@@ -284,6 +288,7 @@ export default function Scene({
         <Clouds total={grid.total} />
         {rain && <Rain total={grid.total} />}
 
+        {/* Aerial Vehicles */}
         <Helicopter
           orbit={grid.total * 0.62}
           alt={16}
@@ -291,7 +296,14 @@ export default function Scene({
           bannerColor={bannerColor}
         />
 
-        <HotAirBalloon offsetX={4.5} offsetZ={3.5} alt={96} />
+        {/* Hot Air Balloon (Visible above tree canopy) */}
+        <HotAirBalloon
+          offsetX={grid.total * 0.22}
+          offsetZ={-grid.total * 0.18}
+          alt={20}
+        />
+
+        {/* Blimp (Outer orbit) */}
         <Blimp orbit={grid.total * 1.05} alt={24} speed={0.045} />
       </Canvas>
     </div>
